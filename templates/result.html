@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Resultado</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  </head>
+  <body>
+    <main class="card">
+      <h1>Arquivos gerados</h1>
+      <p>Nomes encontrados: {{ names | join(', ') }}</p>
+      <ul>
+        {% for file in files %}
+        <li>
+          <a href="{{ url_for('download', filename=file) }}">{{ file }}</a>
+        </li>
+        {% endfor %}
+      </ul>
+      <a class="secondary" href="{{ url_for('index') }}">Processar outro PDF</a>
+    </main>
+  </body>
+</html>

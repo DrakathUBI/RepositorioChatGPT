@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Renomeador de PDFs por Aluno</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  </head>
+  <body>
+    <main class="card">
+      <h1>Renomear PDFs por aluno (OCR)</h1>
+      <p>
+        Envie um PDF e o sistema detecta nomes de alunos automaticamente. Você também pode informar uma lista separada por vírgula para melhorar a precisão.
+      </p>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      <ul class="flash-list">
+        {% for category, message in messages %}
+        <li class="{{ category }}">{{ message }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      {% endwith %}
+
+      <form action="{{ url_for('processar') }}" method="post" enctype="multipart/form-data">
+        <label for="pdf">Arquivo PDF</label>
+        <input id="pdf" type="file" name="pdf" accept="application/pdf" required />
+
+        <label for="lista_alunos">Lista de alunos (opcional, separados por vírgula)</label>
+        <textarea
+          id="lista_alunos"
+          name="lista_alunos"
+          rows="3"
+          placeholder="Ata Lilian Katia, Pedro Russo"
+        ></textarea>
+
+        <button type="submit">Processar arquivo</button>
+      </form>
+    </main>
+  </body>
+</html>
