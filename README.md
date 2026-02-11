@@ -17,6 +17,30 @@ Atendendo ao pedido, o projeto agora é um **aplicativo desktop em C#/.NET (Wind
 
 ## Quero rodar **na mesma máquina**, sem admin
 
+## Fluxo rápido (se você vai baixar ZIP do GitHub)
+
+Perfeito — esse é o caminho mais simples no seu cenário.
+
+1. Baixe o ZIP: `https://github.com/DrakathUBI/RepositorioChatGPT/archive/refs/heads/main.zip`
+2. Extraia o ZIP no Desktop.
+3. Renomeie a pasta extraída para `RepositorioChatGPT` (se vier como `RepositorioChatGPT-main`).
+4. Abra PowerShell e rode:
+
+```powershell
+cd $env:USERPROFILE\Desktop\RepositorioChatGPT
+powershell -ExecutionPolicy Bypass -File .\scripts\build_local_no_admin.ps1
+```
+
+5. Execute o programa:
+
+```powershell
+cd .\dist
+.\MacroStudio.exe
+```
+
+> Se der erro de política ao rodar script (`ExecutionPolicy`), use o mesmo comando com `-ExecutionPolicy Bypass` como mostrado acima.
+
+
 Sem usar outra máquina: rode o script abaixo, que instala o .NET SDK **só no seu usuário** (`%USERPROFILE%\.dotnet`) e gera o `.exe`.
 
 > **Importante:** o nome correto do script é `build_local_no_admin.ps1` (termina com `.ps1`, não `.cs1`).
