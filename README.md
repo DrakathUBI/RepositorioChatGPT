@@ -23,7 +23,14 @@ Sem usar outra máquina: rode o script abaixo, que instala o .NET SDK **só no s
 
 ### 1) Gerar o executável localmente
 
-Abra PowerShell na pasta do repositório e execute:
+Abra PowerShell e primeiro garanta que você está com o repositório completo:
+
+```powershell
+git clone https://github.com/DrakathUBI/RepositorioChatGPT.git
+cd RepositorioChatGPT
+```
+
+Depois execute:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\build_local_no_admin.ps1
@@ -54,6 +61,21 @@ $env:PATH="$env:DOTNET_ROOT\tools;$env:PATH"
 $env:DOTNET_ROOT\dotnet.exe restore .\MacroStudio\MacroStudio.csproj
 $env:DOTNET_ROOT\dotnet.exe publish .\MacroStudio\MacroStudio.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true -o .\dist
 ```
+
+
+### Erro `MSB1009: Arquivo de projeto não existe`
+
+Esse erro acontece quando o script é executado fora da pasta correta ou com projeto incompleto.
+
+Use exatamente:
+
+```powershell
+git clone https://github.com/DrakathUBI/RepositorioChatGPT.git
+cd RepositorioChatGPT
+powershell -ExecutionPolicy Bypass -File .\scripts\build_local_no_admin.ps1
+```
+
+O script foi ajustado para localizar o `MacroStudio.csproj` automaticamente e **interromper com erro claro** se não encontrar.
 
 ## Se a empresa bloquear execução
 
