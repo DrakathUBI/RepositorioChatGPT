@@ -4,37 +4,50 @@ namespace MacroStudio;
 
 public class MainForm : Form
 {
-    private readonly TextBox _macroPath = new() { Width = 760 };
-    private readonly TextBox _params = new() { Width = 760, Text = "" };
-    private readonly TextBox _speed = new() { Width = 80, Text = "1.0" };
-    private readonly TextBox _stopKey = new() { Width = 80, Text = "F8" };
-    private readonly TextBox _model = new() { Width = 180, Text = "gemini-2.0-flash" };
-    private readonly TextBox _log = new() { Multiline = true, ScrollBars = ScrollBars.Vertical, Width = 1060, Height = 120 };
+    private readonly TextBox _macroPath = new() { Width = 690 };
+    private readonly TextBox _params = new() { Width = 460, Text = "" };
+    private readonly TextBox _speed = new() { Width = 70, Text = "1.0" };
+    private readonly TextBox _stopKey = new() { Width = 70, Text = "F8" };
+    private readonly TextBox _model = new() { Width = 170, Text = "gemini-2.0-flash" };
+    private readonly TextBox _waitThreshold = new() { Width = 60, Text = "250" };
+
+    private readonly TextBox _log = new()
+    {
+        Multiline = true,
+        ScrollBars = ScrollBars.Vertical,
+        Width = 1140,
+        Height = 110,
+        ReadOnly = true
+    };
 
     private readonly ComboBox _inspectFilter = new()
     {
-        Width = 220,
+        Width = 170,
         DropDownStyle = ComboBoxStyle.DropDownList
-    };
-
-    private readonly DataGridView _eventsGrid = new()
-    {
-        Width = 1060,
-        Height = 330,
-        ReadOnly = true,
-        AllowUserToAddRows = false,
-        AllowUserToDeleteRows = false,
-        SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-        MultiSelect = false,
-        AutoGenerateColumns = false,
-        RowHeadersVisible = false
     };
 
     private readonly CheckBox _playMouseMoves = new() { Text = "Mouse moves", Checked = true, AutoSize = true };
     private readonly CheckBox _playMouseClicks = new() { Text = "Mouse clicks", Checked = true, AutoSize = true };
     private readonly CheckBox _playKeyPresses = new() { Text = "Key presses", Checked = true, AutoSize = true };
     private readonly CheckBox _playWaitTimes = new() { Text = "Wait times", Checked = true, AutoSize = true };
-    private readonly CheckBox _compactView = new() { Text = "Compactar spam (moves/waits)", Checked = true, AutoSize = true };
+
+    private readonly CheckBox _compactView = new() { Text = "Compactar mouse moves", Checked = true, AutoSize = true };
+    private readonly CheckBox _naturalView = new() { Text = "Visão natural (menos spam)", Checked = true, AutoSize = true };
+
+    private readonly DataGridView _eventsGrid = new()
+    {
+        Width = 1140,
+        Height = 390,
+        ReadOnly = true,
+        AllowUserToAddRows = false,
+        AllowUserToDeleteRows = false,
+        SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+        MultiSelect = false,
+        AutoGenerateColumns = false,
+        RowHeadersVisible = false,
+        BackgroundColor = Color.White,
+        BorderStyle = BorderStyle.FixedSingle
+    };
 
     private readonly MacroRecorderService _recorder = new();
     private readonly MacroPlayerService _player = new();
@@ -44,104 +57,166 @@ public class MainForm : Form
 
     public MainForm()
     {
-        Text = "Macro Studio (.exe)";
-        Width = 1100;
-        Height = 760;
+        Text = "Macro Studio Professional";
+        Width = 1180;
+        Height = 860;
+        StartPosition = FormStartPosition.CenterScreen;
 
-        var y = 12;
-        Controls.Add(new Label { Left = 12, Top = y, Width = 200, Text = "Arquivo macro (.json)" });
-        y += 20;
-        _macroPath.Left = 12;
-        _macroPath.Top = y;
-        Controls.Add(_macroPath);
+        BuildUi();
+    }
 
-        var btnBrowse = new Button { Left = 780, Top = y - 1, Width = 90, Text = "Abrir" };
-        var btnReload = new Button { Left = 876, Top = y - 1, Width = 90, Text = "Recarregar" };
+    private void BuildUi()
+    {
+        var y = 10;
+
+        var header = new Label
+        {
+            Left = 12,
+            Top = y,
+            Width = 800,
+            Height = 24,
+            Text = "Macro Studio • Record and Edit / Playback",
+            Font = new Font(Font, FontStyle.Bold)
+        };
+        Controls.Add(header);
+        y += 28;
+
+        BuildMacroFileSection(ref y);
+        BuildActionSection(ref y);
+        BuildFilterSection(ref y);
+        BuildGridSection(ref y);
+        BuildLogSection(ref y);
+    }
+
+    private void BuildMacroFileSection(ref int y)
+    {
+        var group = new GroupBox { Left = 12, Top = y, Width = 1140, Height = 82, Text = "Arquivo da macro" };
+
+        group.Controls.Add(new Label { Left = 12, Top = 26, Width = 140, Text = "Macro (.json)" });
+        _macroPath.Left = 92;
+        _macroPath.Top = 22;
+        group.Controls.Add(_macroPath);
+
+        var btnBrowse = new Button { Left = 790, Top = 20, Width = 95, Text = "Abrir" };
+        var btnReload = new Button { Left = 892, Top = 20, Width = 95, Text = "Inspecionar" };
+        var btnAi = new Button { Left = 994, Top = 20, Width = 130, Text = "Analisar IA" };
+
         btnBrowse.Click += (_, _) => BrowseMacro();
         btnReload.Click += async (_, _) => await LoadAndRenderMacroAsync();
-        Controls.Add(btnBrowse);
-        Controls.Add(btnReload);
+        btnAi.Click += async (_, _) => await AnalyzeAsync();
 
-        y += 34;
-        Controls.Add(new Label { Left = 12, Top = y, Width = 300, Text = "Parâmetros (a=1,b=2 ou JSON)" });
-        y += 20;
-        _params.Left = 12;
-        _params.Top = y;
-        Controls.Add(_params);
+        group.Controls.Add(btnBrowse);
+        group.Controls.Add(btnReload);
+        group.Controls.Add(btnAi);
 
-        y += 34;
-        Controls.Add(new Label { Left = 12, Top = y, Width = 90, Text = "Velocidade" });
-        _speed.Left = 86;
-        _speed.Top = y - 3;
-        Controls.Add(_speed);
+        Controls.Add(group);
+        y += group.Height + 8;
+    }
 
-        Controls.Add(new Label { Left = 186, Top = y, Width = 90, Text = "Tecla stop" });
-        _stopKey.Left = 250;
-        _stopKey.Top = y - 3;
-        Controls.Add(_stopKey);
+    private void BuildActionSection(ref int y)
+    {
+        var group = new GroupBox { Left = 12, Top = y, Width = 1140, Height = 108, Text = "Record and Playback" };
 
-        Controls.Add(new Label { Left = 350, Top = y, Width = 70, Text = "Modelo" });
-        _model.Left = 405;
-        _model.Top = y - 3;
-        Controls.Add(_model);
+        group.Controls.Add(new Label { Left = 12, Top = 27, Width = 90, Text = "Parâmetros" });
+        _params.Left = 92;
+        _params.Top = 23;
+        group.Controls.Add(_params);
 
-        y += 34;
-        var btnRecord = new Button { Left = 12, Top = y, Width = 120, Text = "Gravar" };
-        var btnStopRecord = new Button { Left = 138, Top = y, Width = 120, Text = "Parar Gravação" };
-        var btnPlay = new Button { Left = 264, Top = y, Width = 120, Text = "Reproduzir" };
-        var btnStopPlay = new Button { Left = 390, Top = y, Width = 120, Text = "Parar Replay" };
-        var btnInspect = new Button { Left = 516, Top = y, Width = 120, Text = "Inspecionar" };
-        var btnAi = new Button { Left = 642, Top = y, Width = 120, Text = "Analisar IA" };
+        group.Controls.Add(new Label { Left = 565, Top = 27, Width = 70, Text = "Speed" });
+        _speed.Left = 614;
+        _speed.Top = 23;
+        group.Controls.Add(_speed);
+
+        group.Controls.Add(new Label { Left = 695, Top = 27, Width = 70, Text = "Stop key" });
+        _stopKey.Left = 754;
+        _stopKey.Top = 23;
+        group.Controls.Add(_stopKey);
+
+        group.Controls.Add(new Label { Left = 835, Top = 27, Width = 60, Text = "Modelo" });
+        _model.Left = 892;
+        _model.Top = 23;
+        group.Controls.Add(_model);
+
+        var btnRecord = new Button { Left = 12, Top = 60, Width = 120, Text = "● Gravar" };
+        var btnStopRecord = new Button { Left = 138, Top = 60, Width = 130, Text = "■ Parar Gravação" };
+        var btnPlay = new Button { Left = 274, Top = 60, Width = 120, Text = "▶ Reproduzir" };
+        var btnStopPlay = new Button { Left = 400, Top = 60, Width = 120, Text = "■ Parar Replay" };
 
         btnRecord.Click += async (_, _) => await StartRecordAsync();
         btnStopRecord.Click += async (_, _) => await StopRecordAsync();
         btnPlay.Click += async (_, _) => await PlayAsync();
         btnStopPlay.Click += (_, _) => StopPlay();
-        btnInspect.Click += async (_, _) => await LoadAndRenderMacroAsync();
-        btnAi.Click += async (_, _) => await AnalyzeAsync();
 
-        Controls.Add(btnRecord);
-        Controls.Add(btnStopRecord);
-        Controls.Add(btnPlay);
-        Controls.Add(btnStopPlay);
-        Controls.Add(btnInspect);
-        Controls.Add(btnAi);
+        group.Controls.Add(btnRecord);
+        group.Controls.Add(btnStopRecord);
+        group.Controls.Add(btnPlay);
+        group.Controls.Add(btnStopPlay);
 
-        y += 40;
-        Controls.Add(new Label { Left = 12, Top = y + 4, Width = 130, Text = "Filtro inspeção" });
-        _inspectFilter.Left = 110;
-        _inspectFilter.Top = y;
+        _playMouseMoves.Left = 540;
+        _playMouseMoves.Top = 64;
+        _playMouseClicks.Left = 650;
+        _playMouseClicks.Top = 64;
+        _playKeyPresses.Left = 760;
+        _playKeyPresses.Top = 64;
+        _playWaitTimes.Left = 865;
+        _playWaitTimes.Top = 64;
+
+        group.Controls.Add(_playMouseMoves);
+        group.Controls.Add(_playMouseClicks);
+        group.Controls.Add(_playKeyPresses);
+        group.Controls.Add(_playWaitTimes);
+
+        Controls.Add(group);
+        y += group.Height + 8;
+    }
+
+    private void BuildFilterSection(ref int y)
+    {
+        var group = new GroupBox { Left = 12, Top = y, Width = 1140, Height = 70, Text = "Inspeção inteligente" };
+
+        group.Controls.Add(new Label { Left = 12, Top = 31, Width = 75, Text = "Filtro" });
+        _inspectFilter.Left = 58;
+        _inspectFilter.Top = 27;
         _inspectFilter.Items.AddRange(new object[] { "Tudo", "Cliques", "Movimento mouse", "Teclado", "Espera" });
         _inspectFilter.SelectedIndex = 0;
         _inspectFilter.SelectedIndexChanged += (_, _) => RefreshGrid();
-        Controls.Add(_inspectFilter);
+        group.Controls.Add(_inspectFilter);
 
-        _compactView.Left = 12;
-        _compactView.Top = y + 28;
+        _compactView.Left = 245;
+        _compactView.Top = 29;
         _compactView.CheckedChanged += (_, _) => RefreshGrid();
-        Controls.Add(_compactView);
+        group.Controls.Add(_compactView);
 
-        Controls.Add(new Label { Left = 350, Top = y + 4, Width = 130, Text = "Playback filter" });
-        _playMouseMoves.Left = 450;
-        _playMouseMoves.Top = y + 3;
-        _playMouseClicks.Left = 560;
-        _playMouseClicks.Top = y + 3;
-        _playKeyPresses.Left = 670;
-        _playKeyPresses.Top = y + 3;
-        _playWaitTimes.Left = 770;
-        _playWaitTimes.Top = y + 3;
-        Controls.Add(_playMouseMoves);
-        Controls.Add(_playMouseClicks);
-        Controls.Add(_playKeyPresses);
-        Controls.Add(_playWaitTimes);
+        _naturalView.Left = 430;
+        _naturalView.Top = 29;
+        _naturalView.CheckedChanged += (_, _) => RefreshGrid();
+        group.Controls.Add(_naturalView);
 
-        y += 58;
+        group.Controls.Add(new Label { Left = 640, Top = 31, Width = 130, Text = "Wait mínimo (ms)" });
+        _waitThreshold.Left = 736;
+        _waitThreshold.Top = 27;
+        _waitThreshold.TextChanged += (_, _) => RefreshGrid();
+        group.Controls.Add(_waitThreshold);
+
+        var btnRefresh = new Button { Left = 810, Top = 25, Width = 130, Text = "Atualizar tabela" };
+        btnRefresh.Click += (_, _) => RefreshGrid();
+        group.Controls.Add(btnRefresh);
+
+        Controls.Add(group);
+        y += group.Height + 8;
+    }
+
+    private void BuildGridSection(ref int y)
+    {
         SetupGridColumns();
         _eventsGrid.Left = 12;
         _eventsGrid.Top = y;
         Controls.Add(_eventsGrid);
+        y += _eventsGrid.Height + 8;
+    }
 
-        y += 340;
+    private void BuildLogSection(ref int y)
+    {
         _log.Left = 12;
         _log.Top = y;
         Controls.Add(_log);
@@ -149,12 +224,12 @@ public class MainForm : Form
 
     private void SetupGridColumns()
     {
-        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "#", DataPropertyName = nameof(EventRow.Index), Width = 48 });
-        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Action", DataPropertyName = nameof(EventRow.Action), Width = 210 });
-        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Value", DataPropertyName = nameof(EventRow.Value), Width = 360 });
+        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "#", DataPropertyName = nameof(EventRow.Index), Width = 46 });
+        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Action", DataPropertyName = nameof(EventRow.Action), Width = 225 });
+        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Value", DataPropertyName = nameof(EventRow.Value), Width = 400 });
         _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Timestamp (ms)", DataPropertyName = nameof(EventRow.TimestampMs), Width = 120 });
-        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Wait (ms)", DataPropertyName = nameof(EventRow.WaitMs), Width = 100 });
-        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Kind", DataPropertyName = nameof(EventRow.Kind), Width = 190 });
+        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Wait (ms)", DataPropertyName = nameof(EventRow.WaitMs), Width = 105 });
+        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Kind", DataPropertyName = nameof(EventRow.Kind), Width = 220 });
     }
 
     private void Log(string message)
@@ -207,7 +282,7 @@ public class MainForm : Form
         _macroPath.Text = sfd.FileName;
         _currentMacro = macro;
         RefreshGrid();
-        Log($"Macro salva em {_macroPath.Text} ({macro.Events.Count} eventos). Use o filtro para ver só cliques/teclas/espera.");
+        Log($"Macro salva em {_macroPath.Text} ({macro.Events.Count} eventos). O modo natural já reduz spam visual.");
     }
 
     private async Task PlayAsync()
@@ -263,7 +338,7 @@ public class MainForm : Form
 
         _currentMacro = await MacroStorage.LoadAsync(_macroPath.Text);
         RefreshGrid();
-        Log($"Inspeção carregada: {_currentMacro.Name}, {_currentMacro.Events.Count} eventos.");
+        Log($"Inspeção carregada: {_currentMacro.Name}, {_currentMacro.Events.Count} eventos brutos.");
     }
 
     private void RefreshGrid()
@@ -274,11 +349,19 @@ public class MainForm : Form
             return;
         }
 
-        var rows = BuildRows(_currentMacro, _inspectFilter.SelectedItem?.ToString() ?? "Tudo", _compactView.Checked);
+        var options = new InspectRenderOptions
+        {
+            Filter = _inspectFilter.SelectedItem?.ToString() ?? "Tudo",
+            CompactMoves = _compactView.Checked,
+            NaturalView = _naturalView.Checked,
+            MinWaitMs = int.TryParse(_waitThreshold.Text, out var wait) ? Math.Max(wait, 0) : 250
+        };
+
+        var rows = BuildRows(_currentMacro, options);
         _eventsGrid.DataSource = rows;
     }
 
-    private static List<EventRow> BuildRows(MacroFile macro, string filter, bool compact)
+    private static List<EventRow> BuildRows(MacroFile macro, InspectRenderOptions options)
     {
         var rows = new List<EventRow>();
         long prevTimestamp = 0;
@@ -292,9 +375,7 @@ public class MainForm : Form
             var ev = macro.Events[i];
             var waitMs = Math.Max(ev.TimestampMs - prevTimestamp, 0);
 
-            if (compact && ev.Kind == "mouse_move" &&
-                int.TryParse(ev.Data.GetValueOrDefault("x"), out var moveX) &&
-                int.TryParse(ev.Data.GetValueOrDefault("y"), out var moveY))
+            if (options.CompactMoves && IsMouseMove(ev, out var moveX, out var moveY))
             {
                 var startX = lastX ?? moveX;
                 var startY = lastY ?? moveY;
@@ -309,11 +390,13 @@ public class MainForm : Form
                         EndY = moveY,
                         TotalWaitMs = waitMs,
                         LastTimestampMs = ev.TimestampMs,
-                        Count = 1
+                        Count = 1,
+                        Distance = Math.Abs(moveX - startX) + Math.Abs(moveY - startY)
                     };
                 }
                 else
                 {
+                    moveAggregation.Distance += Math.Abs(moveX - moveAggregation.EndX) + Math.Abs(moveY - moveAggregation.EndY);
                     moveAggregation.EndX = moveX;
                     moveAggregation.EndY = moveY;
                     moveAggregation.TotalWaitMs += waitMs;
@@ -327,32 +410,15 @@ public class MainForm : Form
                 continue;
             }
 
-            FlushMoveAggregation(rows, filter, moveAggregation);
+            FlushMoveAggregation(rows, options, moveAggregation);
             moveAggregation = null;
 
-            if (waitMs > 0)
-            {
-                var waitRow = new EventRow
-                {
-                    Index = rows.Count + 1,
-                    Action = "Wait",
-                    Value = $"{waitMs} ms",
-                    TimestampMs = ev.TimestampMs,
-                    WaitMs = waitMs,
-                    Kind = "wait"
-                };
-
-                if (MatchInspectFilter(filter, waitRow.Kind))
-                {
-                    rows.Add(waitRow);
-                }
-            }
+            AddWaitRowIfRelevant(rows, options, ev.TimestampMs, waitMs);
 
             var action = PrettyAction(ev);
             var value = PrettyValue(ev, ref lastX, ref lastY);
             var row = new EventRow
             {
-                Index = rows.Count + 1,
                 Action = action,
                 Value = value,
                 TimestampMs = ev.TimestampMs,
@@ -360,7 +426,7 @@ public class MainForm : Form
                 Kind = ev.Kind
             };
 
-            if (MatchInspectFilter(filter, row.Kind))
+            if (MatchInspectFilter(options.Filter, row.Kind))
             {
                 rows.Add(row);
             }
@@ -368,39 +434,75 @@ public class MainForm : Form
             prevTimestamp = ev.TimestampMs;
         }
 
-        FlushMoveAggregation(rows, filter, moveAggregation);
+        FlushMoveAggregation(rows, options, moveAggregation);
         ReindexRows(rows);
         return rows;
     }
 
-    private static void FlushMoveAggregation(List<EventRow> rows, string filter, MoveAggregation? aggregation)
+    private static bool IsMouseMove(MacroEvent ev, out int x, out int y)
+    {
+        x = 0;
+        y = 0;
+        return ev.Kind == "mouse_move"
+               && int.TryParse(ev.Data.GetValueOrDefault("x"), out x)
+               && int.TryParse(ev.Data.GetValueOrDefault("y"), out y);
+    }
+
+    private static void AddWaitRowIfRelevant(List<EventRow> rows, InspectRenderOptions options, long timestampMs, long waitMs)
+    {
+        if (waitMs <= 0)
+        {
+            return;
+        }
+
+        if (options.NaturalView && waitMs < options.MinWaitMs)
+        {
+            return;
+        }
+
+        if (rows.Count > 0 && rows[^1].Kind == "wait")
+        {
+            rows[^1].WaitMs += waitMs;
+            rows[^1].Value = $"{rows[^1].WaitMs} ms";
+            rows[^1].TimestampMs = timestampMs;
+            return;
+        }
+
+        var waitRow = new EventRow
+        {
+            Action = "Wait",
+            Value = $"{waitMs} ms",
+            TimestampMs = timestampMs,
+            WaitMs = waitMs,
+            Kind = "wait"
+        };
+
+        if (MatchInspectFilter(options.Filter, waitRow.Kind))
+        {
+            rows.Add(waitRow);
+        }
+    }
+
+    private static void FlushMoveAggregation(List<EventRow> rows, InspectRenderOptions options, MoveAggregation? aggregation)
     {
         if (aggregation is null)
         {
             return;
         }
 
+        var isRelevantMove = !options.NaturalView || aggregation.Count >= 3 || aggregation.Distance >= 20;
+        if (!isRelevantMove)
+        {
+            return;
+        }
+
         if (aggregation.TotalWaitMs > 0)
         {
-            var waitRow = new EventRow
-            {
-                Index = rows.Count + 1,
-                Action = "Wait",
-                Value = $"{aggregation.TotalWaitMs} ms",
-                TimestampMs = aggregation.LastTimestampMs,
-                WaitMs = aggregation.TotalWaitMs,
-                Kind = "wait"
-            };
-
-            if (MatchInspectFilter(filter, waitRow.Kind))
-            {
-                rows.Add(waitRow);
-            }
+            AddWaitRowIfRelevant(rows, options, aggregation.LastTimestampMs, aggregation.TotalWaitMs);
         }
 
         var moveRow = new EventRow
         {
-            Index = rows.Count + 1,
             Action = aggregation.Count > 1 ? $"Mouse move (x{aggregation.Count})" : "Mouse move",
             Value = $"{aggregation.StartX}, {aggregation.StartY} -> {aggregation.EndX}, {aggregation.EndY}",
             TimestampMs = aggregation.LastTimestampMs,
@@ -408,7 +510,7 @@ public class MainForm : Form
             Kind = "mouse_move_group"
         };
 
-        if (MatchInspectFilter(filter, moveRow.Kind))
+        if (MatchInspectFilter(options.Filter, moveRow.Kind))
         {
             rows.Add(moveRow);
         }
@@ -541,6 +643,14 @@ public class MainForm : Form
         return form.ShowDialog() == DialogResult.OK ? textBox.Text : string.Empty;
     }
 
+    private sealed class InspectRenderOptions
+    {
+        public string Filter { get; init; } = "Tudo";
+        public bool CompactMoves { get; init; }
+        public bool NaturalView { get; init; }
+        public int MinWaitMs { get; init; }
+    }
+
     private sealed class MoveAggregation
     {
         public int StartX { get; set; }
@@ -550,6 +660,7 @@ public class MainForm : Form
         public long TotalWaitMs { get; set; }
         public long LastTimestampMs { get; set; }
         public int Count { get; set; }
+        public int Distance { get; set; }
     }
 
     private sealed class EventRow

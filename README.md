@@ -7,8 +7,9 @@ Atendendo ao pedido, o projeto agora é um **aplicativo desktop em C#/.NET (Wind
 - Gravação global de teclado e mouse (estilo macro recorder).
 - Tela de inspeção no próprio app com tabela de ações (`Action`, `Value`, `Timestamp`, `Wait`, `Kind`).
 - Filtro de inspeção por tipo: **Tudo / Cliques / Movimento mouse / Teclado / Espera**.
-- Modo **Compactar spam (moves/waits)** para somar movimentos sequenciais e tempos de espera, evitando lista poluída.
+- Modo **Compactar mouse moves** para agrupar trajetórias em blocos `Mouse move (xN)` com origem→destino final.
 - Playback filter com checkboxes: **Mouse moves**, **Mouse clicks**, **Key presses**, **Wait times**.
+- Modo **Visão natural (menos spam)** com limiar de `Wait mínimo (ms)` para esconder pausas curtas e deixar a timeline mais limpa.
 - Replay da macro com controle de velocidade.
 - Parâmetros (`{{nome}}`) para reutilizar macros.
 - Modo IA opcional com Gemini (`GEMINI_API_KEY`).
