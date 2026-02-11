@@ -2,8 +2,6 @@ using Gma.System.MouseKeyHook;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
-using WindowsInput;
-using WindowsInput.Native;
 
 namespace MacroStudio;
 
@@ -117,9 +115,25 @@ public class MacroRecorderService
     }
 }
 
+internal static class NativeInput
+{
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    public static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, UIntPtr dwExtraInfo);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+
+    public const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
+    public const uint MOUSEEVENTF_LEFTUP = 0x0004;
+    public const uint MOUSEEVENTF_RIGHTDOWN = 0x0008;
+    public const uint MOUSEEVENTF_RIGHTUP = 0x0010;
+    public const uint MOUSEEVENTF_WHEEL = 0x0800;
+
+    public const uint KEYEVENTF_KEYUP = 0x0002;
+}
+
 public class MacroPlayerService
 {
-    private readonly InputSimulator _input = new();
 
     public async Task PlayAsync(MacroFile macro, Dictionary<string, string> parameters, double speed, CancellationToken ct)
     {
@@ -138,15 +152,15 @@ public class MacroPlayerService
 
     private void Execute(string kind, Dictionary<string, string> data)
     {
-        if (kind == "key_down" && data.TryGetValue("key", out var keyDown) && Enum.TryParse(keyDown, out VirtualKeyCode kd))
+        if (kind == "key_down" && data.TryGetValue("key", out var keyDown) && TryParseKey(keyDown, out var kd))
         {
-            _input.Keyboard.KeyDown(kd);
+            NativeInput.keybd_event((byte)kd, 0, 0, UIntPtr.Zero);
             return;
         }
 
-        if (kind == "key_up" && data.TryGetValue("key", out var keyUp) && Enum.TryParse(keyUp, out VirtualKeyCode ku))
+        if (kind == "key_up" && data.TryGetValue("key", out var keyUp) && TryParseKey(keyUp, out var ku))
         {
-            _input.Keyboard.KeyUp(ku);
+            NativeInput.keybd_event((byte)ku, 0, NativeInput.KEYEVENTF_KEYUP, UIntPtr.Zero);
             return;
         }
 
@@ -168,22 +182,34 @@ public class MacroPlayerService
             var button = data.GetValueOrDefault("button", "Left");
             if (button.Equals("Left", StringComparison.OrdinalIgnoreCase))
             {
-                if (kind == "mouse_down") _input.Mouse.LeftButtonDown();
-                else _input.Mouse.LeftButtonUp();
+                if (kind == "mouse_down") NativeInput.mouse_event(NativeInput.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, UIntPtr.Zero);
+                else NativeInput.mouse_event(NativeInput.MOUSEEVENTF_LEFTUP, 0, 0, 0, UIntPtr.Zero);
             }
             if (button.Equals("Right", StringComparison.OrdinalIgnoreCase))
             {
-                if (kind == "mouse_down") _input.Mouse.RightButtonDown();
-                else _input.Mouse.RightButtonUp();
+                if (kind == "mouse_down") NativeInput.mouse_event(NativeInput.MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, UIntPtr.Zero);
+                else NativeInput.mouse_event(NativeInput.MOUSEEVENTF_RIGHTUP, 0, 0, 0, UIntPtr.Zero);
             }
         }
 
         if (kind == "mouse_wheel" && data.TryGetValue("delta", out var deltaRaw) && int.TryParse(deltaRaw, out var delta))
         {
-            _input.Mouse.VerticalScroll(delta / 120);
+            NativeInput.mouse_event(NativeInput.MOUSEEVENTF_WHEEL, 0, 0, unchecked((uint)delta), UIntPtr.Zero);
         }
     }
 
+
+    private static bool TryParseKey(string keyName, out Keys key)
+    {
+        key = Keys.None;
+        if (Enum.TryParse(keyName, true, out Keys parsed))
+        {
+            key = parsed;
+            return true;
+        }
+
+        return false;
+    }
     private static string ApplyParameters(string value, Dictionary<string, string> parameters)
     {
         var output = value;

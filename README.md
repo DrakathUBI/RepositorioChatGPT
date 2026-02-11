@@ -27,9 +27,11 @@ Perfeito — esse é o caminho mais simples no seu cenário.
 4. Abra PowerShell e rode:
 
 ```powershell
-cd $env:USERPROFILE\Desktop\RepositorioChatGPT
+cd C:\caminho\para\RepositorioChatGPT   # ex.: Desktop ou Downloads
 powershell -ExecutionPolicy Bypass -File .\scripts\build_local_no_admin.ps1
 ```
+
+> Se você já está dentro da pasta do repositório (como no seu log em `Downloads`), **não precisa dar `cd` para Desktop**: execute só o script.
 
 5. Execute o programa:
 
@@ -60,7 +62,7 @@ cd RepositorioChatGPT
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\download_repo_no_git.ps1
-cd $env:USERPROFILE\Desktop\RepositorioChatGPT
+cd C:\caminho\para\RepositorioChatGPT
 ```
 
 Depois execute:
@@ -109,7 +111,7 @@ Use uma destas opções:
 Depois entre na pasta e rode:
 
 ```powershell
-cd $env:USERPROFILE\Desktop\RepositorioChatGPT
+cd C:\caminho\para\RepositorioChatGPT   # ex.: Desktop ou Downloads
 powershell -ExecutionPolicy Bypass -File .\scripts\build_local_no_admin.ps1
 ```
 
@@ -123,6 +125,11 @@ Depois rode novamente:
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\build_local_no_admin.ps1
 ```
+
+### Aviso `NU1603` do MouseKeyHook
+
+Se aparecer `NU1603` dizendo que `5.6.1` não foi encontrada e que `5.7.1` foi usada, atualize para a versão mais recente do repositório.
+Nesta versão já fixamos para `MouseKeyHook` `5.7.1`, então o aviso deve desaparecer.
 
 ### Erro `MSB1009: Arquivo de projeto não existe`
 
@@ -140,7 +147,7 @@ Ou, sem Git:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\download_repo_no_git.ps1
-cd $env:USERPROFILE\Desktop\RepositorioChatGPT
+cd C:\caminho\para\RepositorioChatGPT   # ex.: Desktop ou Downloads
 powershell -ExecutionPolicy Bypass -File .\scripts\build_local_no_admin.ps1
 ```
 
