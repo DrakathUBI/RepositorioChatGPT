@@ -132,22 +132,50 @@ internal static class NativeInput
     public const uint KEYEVENTF_KEYUP = 0x0002;
 }
 
+public sealed class PlaybackFilterOptions
+{
+    public bool PlayMouseMoves { get; init; } = true;
+    public bool PlayMouseClicks { get; init; } = true;
+    public bool PlayKeyPresses { get; init; } = true;
+    public bool RespectWaitTimes { get; init; } = true;
+}
+
 public class MacroPlayerService
 {
 
-    public async Task PlayAsync(MacroFile macro, Dictionary<string, string> parameters, double speed, CancellationToken ct)
+    public async Task PlayAsync(MacroFile macro, Dictionary<string, string> parameters, double speed, CancellationToken ct, PlaybackFilterOptions? options = null)
     {
+        options ??= new PlaybackFilterOptions();
+
         long previous = 0;
         foreach (var ev in macro.Events)
         {
             ct.ThrowIfCancellationRequested();
             var delay = Math.Max((ev.TimestampMs - previous) / Math.Max(speed, 0.1), 0);
-            await Task.Delay((int)delay, ct);
+            if (options.RespectWaitTimes && delay > 0)
+            {
+                await Task.Delay((int)delay, ct);
+            }
 
-            var data = ev.Data.ToDictionary(kvp => kvp.Key, kvp => ApplyParameters(kvp.Value, parameters));
-            Execute(ev.Kind, data);
+            if (ShouldPlayEvent(ev.Kind, options))
+            {
+                var data = ev.Data.ToDictionary(kvp => kvp.Key, kvp => ApplyParameters(kvp.Value, parameters));
+                Execute(ev.Kind, data);
+            }
+
             previous = ev.TimestampMs;
         }
+    }
+
+    private static bool ShouldPlayEvent(string kind, PlaybackFilterOptions options)
+    {
+        return kind switch
+        {
+            "mouse_move" => options.PlayMouseMoves,
+            "mouse_down" or "mouse_up" or "mouse_wheel" => options.PlayMouseClicks,
+            "key_down" or "key_up" => options.PlayKeyPresses,
+            _ => true
+        };
     }
 
     private void Execute(string kind, Dictionary<string, string> data)

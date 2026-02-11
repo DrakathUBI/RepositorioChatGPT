@@ -5,9 +5,11 @@ Atendendo ao pedido, o projeto agora é um **aplicativo desktop em C#/.NET (Wind
 ## Funcionalidades
 
 - Gravação global de teclado e mouse (estilo macro recorder).
-- Replay da macro mantendo timing, com controle de velocidade.
+- Tela de inspeção no próprio app com tabela de ações (`Action`, `Value`, `Timestamp`, `Wait`, `Kind`).
+- Filtro de inspeção por tipo: **Tudo / Cliques / Movimento mouse / Teclado / Espera**.
+- Playback filter com checkboxes: **Mouse moves**, **Mouse clicks**, **Key presses**, **Wait times**.
+- Replay da macro com controle de velocidade.
 - Parâmetros (`{{nome}}`) para reutilizar macros.
-- Inspeção rápida da macro.
 - Modo IA opcional com Gemini (`GEMINI_API_KEY`).
 
 ## Requisitos
