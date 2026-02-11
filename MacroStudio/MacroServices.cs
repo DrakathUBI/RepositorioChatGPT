@@ -292,10 +292,10 @@ public class GeminiCoachService
         return $@"Você é um assistente para melhoria de automações.
 
 Macro em JSON:
-{JsonSerializer.Serialize(macro, new JsonSerializerOptions {{ WriteIndented = true }})}
+{JsonSerializer.Serialize(macro, new JsonSerializerOptions { WriteIndented = true })}
 
 Parâmetros:
-{JsonSerializer.Serialize(parameters, new JsonSerializerOptions {{ WriteIndented = true }})}
+{JsonSerializer.Serialize(parameters, new JsonSerializerOptions { WriteIndented = true })}
 
 Responda:
 1) O que a macro faz.
