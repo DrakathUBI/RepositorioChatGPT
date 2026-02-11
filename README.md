@@ -91,8 +91,8 @@ powershell -ExecutionPolicy Bypass -File .\dotnet-install.ps1 -Version 8.0.303 -
 $env:DOTNET_ROOT="$env:USERPROFILE\.dotnet"
 $env:PATH="$env:DOTNET_ROOT;$env:PATH"
 $env:PATH="$env:DOTNET_ROOT\tools;$env:PATH"
-$env:DOTNET_ROOT\dotnet.exe restore .\MacroStudio\MacroStudio.csproj
-$env:DOTNET_ROOT\dotnet.exe publish .\MacroStudio\MacroStudio.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true -o .\dist
+& "$env:DOTNET_ROOT\dotnet.exe" restore .\MacroStudio\MacroStudio.csproj
+& "$env:DOTNET_ROOT\dotnet.exe" publish .\MacroStudio\MacroStudio.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true -o .\dist
 ```
 
 
@@ -110,6 +110,17 @@ Depois entre na pasta e rode:
 
 ```powershell
 cd $env:USERPROFILE\Desktop\RepositorioChatGPT
+powershell -ExecutionPolicy Bypass -File .\scripts\build_local_no_admin.ps1
+```
+
+
+### Erro `NU1101: Não é possível encontrar o pacote ...`
+
+Se aparecer erro de pacote no `restore`, atualize para a versão mais recente do repositório (o pacote correto agora é `MouseKeyHook`).
+
+Depois rode novamente:
+
+```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\build_local_no_admin.ps1
 ```
 
