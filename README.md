@@ -121,6 +121,29 @@ Peça ao TI um destes caminhos:
 - liberar download do `https://dot.net/v1/dotnet-install.ps1`;
 - ou receber da TI o `MacroStudio.exe` já publicado para sua máquina.
 
+
+## Diagnóstico rápido no PowerShell (sem erro de sintaxe)
+
+No seu print apareceu erro porque:
+
+- `t status` está incorreto (o certo é `git status`);
+- `&&` pode falhar em PowerShell antigo (Windows PowerShell 5.1).
+
+Use assim no **PowerShell**:
+
+```powershell
+git status --short
+rg -n "MacroStudio.csproj|DOTNET_CLI_TELEMETRY_OPTOUT|MSB1009|DrakathUBI/RepositorioChatGPT" README.md scripts/build_local_no_admin.ps1
+```
+
+Ou em uma linha no PowerShell 5.1:
+
+```powershell
+git status --short; rg -n "MacroStudio.csproj|DOTNET_CLI_TELEMETRY_OPTOUT|MSB1009|DrakathUBI/RepositorioChatGPT" README.md scripts/build_local_no_admin.ps1
+```
+
+Se quiser usar `&&`, abra o **PowerShell 7+** (`pwsh`).
+
 ## IA Gemini (opcional)
 
 Defina variável de ambiente antes de abrir o app:
