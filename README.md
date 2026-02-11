@@ -23,11 +23,20 @@ Sem usar outra máquina: rode o script abaixo, que instala o .NET SDK **só no s
 
 ### 1) Gerar o executável localmente
 
-Abra PowerShell e primeiro garanta que você está com o repositório completo:
+Abra PowerShell e primeiro garanta que você está com o repositório completo.
+
+**Se você tem Git instalado:**
 
 ```powershell
 git clone https://github.com/DrakathUBI/RepositorioChatGPT.git
 cd RepositorioChatGPT
+```
+
+**Se você NÃO tem Git instalado (seu caso):**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\download_repo_no_git.ps1
+cd $env:USERPROFILE\Desktop\RepositorioChatGPT
 ```
 
 Depois execute:
@@ -63,15 +72,40 @@ $env:DOTNET_ROOT\dotnet.exe publish .\MacroStudio\MacroStudio.csproj -c Release 
 ```
 
 
+
+### Erro `git : O termo "git" não é reconhecido`
+
+Isso significa que o Git não está instalado (ou não está no `PATH`).
+
+Use uma destas opções:
+
+1. **Sem instalar Git**: rode o script `scripts/download_repo_no_git.ps1` para baixar ZIP e extrair automaticamente.
+2. **Manual sem script**: baixe `https://github.com/DrakathUBI/RepositorioChatGPT/archive/refs/heads/main.zip`, extraia e renomeie a pasta para `RepositorioChatGPT`.
+
+Depois entre na pasta e rode:
+
+```powershell
+cd $env:USERPROFILE\Desktop\RepositorioChatGPT
+powershell -ExecutionPolicy Bypass -File .\scripts\build_local_no_admin.ps1
+```
+
 ### Erro `MSB1009: Arquivo de projeto não existe`
 
 Esse erro acontece quando o script é executado fora da pasta correta ou com projeto incompleto.
 
-Use exatamente:
+Use exatamente (com Git):
 
 ```powershell
 git clone https://github.com/DrakathUBI/RepositorioChatGPT.git
 cd RepositorioChatGPT
+powershell -ExecutionPolicy Bypass -File .\scripts\build_local_no_admin.ps1
+```
+
+Ou, sem Git:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\download_repo_no_git.ps1
+cd $env:USERPROFILE\Desktop\RepositorioChatGPT
 powershell -ExecutionPolicy Bypass -File .\scripts\build_local_no_admin.ps1
 ```
 
