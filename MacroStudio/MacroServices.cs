@@ -10,6 +10,11 @@ public class MacroRecorderService
     private IKeyboardMouseEvents? _hook;
     private readonly Stopwatch _stopwatch = new();
     private readonly List<MacroEvent> _events = new();
+    private long _lastMouseMoveTs = -1;
+    private int? _lastMouseMoveX;
+    private int? _lastMouseMoveY;
+    private const int MinMouseMoveIntervalMs = 80;
+    private const int MinMouseMoveDistancePx = 6;
 
     public bool IsRecording { get; private set; }
 
@@ -21,6 +26,9 @@ public class MacroRecorderService
         }
 
         _events.Clear();
+        _lastMouseMoveTs = -1;
+        _lastMouseMoveX = null;
+        _lastMouseMoveY = null;
         _stopwatch.Restart();
         IsRecording = true;
 
@@ -41,11 +49,19 @@ public class MacroRecorderService
 
         _hook.MouseMove += (_, e) =>
         {
-            AddEvent("mouse_move", new Dictionary<string, string>
+            var currentTs = _stopwatch.ElapsedMilliseconds;
+            if (ShouldRecordMouseMove(e.X, e.Y, currentTs))
             {
-                ["x"] = e.X.ToString(),
-                ["y"] = e.Y.ToString()
-            });
+                AddEvent("mouse_move", new Dictionary<string, string>
+                {
+                    ["x"] = e.X.ToString(),
+                    ["y"] = e.Y.ToString()
+                });
+
+                _lastMouseMoveTs = currentTs;
+                _lastMouseMoveX = e.X;
+                _lastMouseMoveY = e.Y;
+            }
         };
 
         _hook.MouseDownExt += (_, e) =>
@@ -102,6 +118,21 @@ public class MacroRecorderService
         _hook = null;
         _stopwatch.Stop();
         IsRecording = false;
+    }
+
+
+    private bool ShouldRecordMouseMove(int x, int y, long ts)
+    {
+        if (_lastMouseMoveTs < 0 || _lastMouseMoveX is null || _lastMouseMoveY is null)
+        {
+            return true;
+        }
+
+        var elapsed = ts - _lastMouseMoveTs;
+        var dx = Math.Abs(x - _lastMouseMoveX.Value);
+        var dy = Math.Abs(y - _lastMouseMoveY.Value);
+
+        return elapsed >= MinMouseMoveIntervalMs || dx >= MinMouseMoveDistancePx || dy >= MinMouseMoveDistancePx;
     }
 
     private void AddEvent(string kind, Dictionary<string, string> data)

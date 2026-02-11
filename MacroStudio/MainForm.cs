@@ -34,6 +34,7 @@ public class MainForm : Form
     private readonly CheckBox _playMouseClicks = new() { Text = "Mouse clicks", Checked = true, AutoSize = true };
     private readonly CheckBox _playKeyPresses = new() { Text = "Key presses", Checked = true, AutoSize = true };
     private readonly CheckBox _playWaitTimes = new() { Text = "Wait times", Checked = true, AutoSize = true };
+    private readonly CheckBox _compactView = new() { Text = "Compactar spam (moves/waits)", Checked = true, AutoSize = true };
 
     private readonly MacroRecorderService _recorder = new();
     private readonly MacroPlayerService _player = new();
@@ -115,6 +116,11 @@ public class MainForm : Form
         _inspectFilter.SelectedIndexChanged += (_, _) => RefreshGrid();
         Controls.Add(_inspectFilter);
 
+        _compactView.Left = 12;
+        _compactView.Top = y + 28;
+        _compactView.CheckedChanged += (_, _) => RefreshGrid();
+        Controls.Add(_compactView);
+
         Controls.Add(new Label { Left = 350, Top = y + 4, Width = 130, Text = "Playback filter" });
         _playMouseMoves.Left = 450;
         _playMouseMoves.Top = y + 3;
@@ -129,7 +135,7 @@ public class MainForm : Form
         Controls.Add(_playKeyPresses);
         Controls.Add(_playWaitTimes);
 
-        y += 36;
+        y += 58;
         SetupGridColumns();
         _eventsGrid.Left = 12;
         _eventsGrid.Top = y;
@@ -268,21 +274,61 @@ public class MainForm : Form
             return;
         }
 
-        var rows = BuildRows(_currentMacro, _inspectFilter.SelectedItem?.ToString() ?? "Tudo");
+        var rows = BuildRows(_currentMacro, _inspectFilter.SelectedItem?.ToString() ?? "Tudo", _compactView.Checked);
         _eventsGrid.DataSource = rows;
     }
 
-    private static List<EventRow> BuildRows(MacroFile macro, string filter)
+    private static List<EventRow> BuildRows(MacroFile macro, string filter, bool compact)
     {
         var rows = new List<EventRow>();
         long prevTimestamp = 0;
         int? lastX = null;
         int? lastY = null;
 
+        MoveAggregation? moveAggregation = null;
+
         for (var i = 0; i < macro.Events.Count; i++)
         {
             var ev = macro.Events[i];
             var waitMs = Math.Max(ev.TimestampMs - prevTimestamp, 0);
+
+            if (compact && ev.Kind == "mouse_move" &&
+                int.TryParse(ev.Data.GetValueOrDefault("x"), out var moveX) &&
+                int.TryParse(ev.Data.GetValueOrDefault("y"), out var moveY))
+            {
+                var startX = lastX ?? moveX;
+                var startY = lastY ?? moveY;
+
+                if (moveAggregation is null)
+                {
+                    moveAggregation = new MoveAggregation
+                    {
+                        StartX = startX,
+                        StartY = startY,
+                        EndX = moveX,
+                        EndY = moveY,
+                        TotalWaitMs = waitMs,
+                        LastTimestampMs = ev.TimestampMs,
+                        Count = 1
+                    };
+                }
+                else
+                {
+                    moveAggregation.EndX = moveX;
+                    moveAggregation.EndY = moveY;
+                    moveAggregation.TotalWaitMs += waitMs;
+                    moveAggregation.LastTimestampMs = ev.TimestampMs;
+                    moveAggregation.Count += 1;
+                }
+
+                lastX = moveX;
+                lastY = moveY;
+                prevTimestamp = ev.TimestampMs;
+                continue;
+            }
+
+            FlushMoveAggregation(rows, filter, moveAggregation);
+            moveAggregation = null;
 
             if (waitMs > 0)
             {
@@ -322,7 +368,58 @@ public class MainForm : Form
             prevTimestamp = ev.TimestampMs;
         }
 
+        FlushMoveAggregation(rows, filter, moveAggregation);
+        ReindexRows(rows);
         return rows;
+    }
+
+    private static void FlushMoveAggregation(List<EventRow> rows, string filter, MoveAggregation? aggregation)
+    {
+        if (aggregation is null)
+        {
+            return;
+        }
+
+        if (aggregation.TotalWaitMs > 0)
+        {
+            var waitRow = new EventRow
+            {
+                Index = rows.Count + 1,
+                Action = "Wait",
+                Value = $"{aggregation.TotalWaitMs} ms",
+                TimestampMs = aggregation.LastTimestampMs,
+                WaitMs = aggregation.TotalWaitMs,
+                Kind = "wait"
+            };
+
+            if (MatchInspectFilter(filter, waitRow.Kind))
+            {
+                rows.Add(waitRow);
+            }
+        }
+
+        var moveRow = new EventRow
+        {
+            Index = rows.Count + 1,
+            Action = aggregation.Count > 1 ? $"Mouse move (x{aggregation.Count})" : "Mouse move",
+            Value = $"{aggregation.StartX}, {aggregation.StartY} -> {aggregation.EndX}, {aggregation.EndY}",
+            TimestampMs = aggregation.LastTimestampMs,
+            WaitMs = aggregation.TotalWaitMs,
+            Kind = "mouse_move_group"
+        };
+
+        if (MatchInspectFilter(filter, moveRow.Kind))
+        {
+            rows.Add(moveRow);
+        }
+    }
+
+    private static void ReindexRows(List<EventRow> rows)
+    {
+        for (var i = 0; i < rows.Count; i++)
+        {
+            rows[i].Index = i + 1;
+        }
     }
 
     private static bool MatchInspectFilter(string filter, string kind)
@@ -330,7 +427,7 @@ public class MainForm : Form
         return filter switch
         {
             "Cliques" => kind is "mouse_down" or "mouse_up",
-            "Movimento mouse" => kind == "mouse_move",
+            "Movimento mouse" => kind is "mouse_move" or "mouse_move_group",
             "Teclado" => kind is "key_down" or "key_up",
             "Espera" => kind == "wait",
             _ => true
@@ -442,6 +539,17 @@ public class MainForm : Form
         form.AcceptButton = confirmation;
 
         return form.ShowDialog() == DialogResult.OK ? textBox.Text : string.Empty;
+    }
+
+    private sealed class MoveAggregation
+    {
+        public int StartX { get; set; }
+        public int StartY { get; set; }
+        public int EndX { get; set; }
+        public int EndY { get; set; }
+        public long TotalWaitMs { get; set; }
+        public long LastTimestampMs { get; set; }
+        public int Count { get; set; }
     }
 
     private sealed class EventRow

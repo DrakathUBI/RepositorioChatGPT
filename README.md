@@ -7,6 +7,7 @@ Atendendo ao pedido, o projeto agora é um **aplicativo desktop em C#/.NET (Wind
 - Gravação global de teclado e mouse (estilo macro recorder).
 - Tela de inspeção no próprio app com tabela de ações (`Action`, `Value`, `Timestamp`, `Wait`, `Kind`).
 - Filtro de inspeção por tipo: **Tudo / Cliques / Movimento mouse / Teclado / Espera**.
+- Modo **Compactar spam (moves/waits)** para somar movimentos sequenciais e tempos de espera, evitando lista poluída.
 - Playback filter com checkboxes: **Mouse moves**, **Mouse clicks**, **Key presses**, **Wait times**.
 - Replay da macro com controle de velocidade.
 - Parâmetros (`{{nome}}`) para reutilizar macros.
