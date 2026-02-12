@@ -541,10 +541,10 @@ public class MainForm : Form
         _playKeyPresses.Top = 80;
         _playWaitTimes.Left = 358;
         _playWaitTimes.Top = 80;
-        _playMouseMoves.CheckedChanged += (_, _) => Log("Filtro de replay atualizado.");
-        _playMouseClicks.CheckedChanged += (_, _) => Log("Filtro de replay atualizado.");
-        _playKeyPresses.CheckedChanged += (_, _) => Log("Filtro de replay atualizado.");
-        _playWaitTimes.CheckedChanged += (_, _) => Log("Filtro de replay atualizado.");
+        _playMouseMoves.CheckedChanged += (_, _) => { RefreshGrid(); Log("Filtro de replay atualizado."); };
+        _playMouseClicks.CheckedChanged += (_, _) => { RefreshGrid(); Log("Filtro de replay atualizado."); };
+        _playKeyPresses.CheckedChanged += (_, _) => { RefreshGrid(); Log("Filtro de replay atualizado."); };
+        _playWaitTimes.CheckedChanged += (_, _) => { RefreshGrid(); Log("Filtro de replay atualizado."); };
         StyleToggle(_playMouseMoves);
         StyleToggle(_playMouseClicks);
         StyleToggle(_playKeyPresses);
