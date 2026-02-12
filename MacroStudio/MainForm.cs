@@ -2232,7 +2232,8 @@ public class MainForm : Form
 
     private void EventsGrid_DragOver(object? sender, DragEventArgs e)
     {
-        if (!e.Data.GetDataPresent(typeof(int)))
+        var dragData = e.Data;
+        if (dragData is null || !dragData.GetDataPresent(typeof(int)))
         {
             e.Effect = DragDropEffects.None;
             return;
@@ -2243,12 +2244,13 @@ public class MainForm : Form
 
     private void EventsGrid_DragDrop(object? sender, DragEventArgs e)
     {
-        if (_currentMacro is null || !e.Data.GetDataPresent(typeof(int)))
+        var dragData = e.Data;
+        if (_currentMacro is null || dragData is null || !dragData.GetDataPresent(typeof(int)))
         {
             return;
         }
 
-        if (e.Data.GetData(typeof(int)) is not int sourceIndex)
+        if (dragData.GetData(typeof(int)) is not int sourceIndex)
         {
             return;
         }
