@@ -133,15 +133,33 @@ public class MainForm : Form
         hero.Controls.Add(_statusLabel);
         Controls.Add(hero);
 
-        var y = hero.Bottom + 10;
-        BuildMacroFileSection(ref y);
-        BuildActionSection(ref y);
-        BuildFilterSection(ref y);
-        BuildGridSection(ref y);
-        BuildLogSection(ref y);
+        var tabs = new TabControl
+        {
+            Left = 16,
+            Top = hero.Bottom + 10,
+            Width = 1144,
+            Height = 760,
+            Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
+        };
+
+        var playbackPage = new TabPage("Gravação e Replay") { BackColor = Color.FromArgb(239, 242, 247), AutoScroll = true };
+        var inspectorPage = new TabPage("Inspeção e Edição") { BackColor = Color.FromArgb(239, 242, 247), AutoScroll = true };
+
+        tabs.TabPages.Add(playbackPage);
+        tabs.TabPages.Add(inspectorPage);
+        Controls.Add(tabs);
+
+        var yPlayback = 12;
+        BuildMacroFileSection(playbackPage, ref yPlayback);
+        BuildActionSection(playbackPage, ref yPlayback);
+        BuildLogSection(playbackPage, ref yPlayback);
+
+        var yInspector = 12;
+        BuildFilterSection(inspectorPage, ref yInspector);
+        BuildGridSection(inspectorPage, ref yInspector);
     }
 
-    private Panel CreateCard(string title, int y, int height)
+    private Panel CreateCard(Control host, string title, int y, int height)
     {
         var card = new Panel
         {
@@ -175,7 +193,7 @@ public class MainForm : Form
 
         card.Controls.Add(accent);
         card.Controls.Add(header);
-        Controls.Add(card);
+        host.Controls.Add(card);
         return card;
     }
 
@@ -244,9 +262,9 @@ public class MainForm : Form
         check.FlatStyle = FlatStyle.Flat;
     }
 
-    private void BuildMacroFileSection(ref int y)
+    private void BuildMacroFileSection(Control host, ref int y)
     {
-        var card = CreateCard("Arquivo da macro", y, 92);
+        var card = CreateCard(host, "Arquivo da macro", y, 92);
 
         card.Controls.Add(new Label { Left = 14, Top = 44, Width = 96, Text = "Macro (.json)", ForeColor = Color.FromArgb(75, 85, 99) });
 
@@ -270,9 +288,9 @@ public class MainForm : Form
         y += card.Height + 10;
     }
 
-    private void BuildActionSection(ref int y)
+    private void BuildActionSection(Control host, ref int y)
     {
-        var card = CreateCard("Record and Playback", y, 164);
+        var card = CreateCard(host, "Record and Playback", y, 164);
 
         card.Controls.Add(new Label { Left = 14, Top = 44, Width = 86, Text = "Parâmetros", ForeColor = Color.FromArgb(75, 85, 99) });
         _params.Left = 105;
@@ -361,9 +379,9 @@ public class MainForm : Form
         y += card.Height + 10;
     }
 
-    private void BuildFilterSection(ref int y)
+    private void BuildFilterSection(Control host, ref int y)
     {
-        var card = CreateCard("Inspeção inteligente", y, 124);
+        var card = CreateCard(host, "Inspeção inteligente", y, 124);
 
         card.Controls.Add(new Label { Left = 14, Top = 44, Width = 50, Text = "Filtro", ForeColor = Color.FromArgb(75, 85, 99) });
         _inspectFilter.Left = 64;
@@ -417,9 +435,9 @@ public class MainForm : Form
         y += card.Height + 10;
     }
 
-    private void BuildGridSection(ref int y)
+    private void BuildGridSection(Control host, ref int y)
     {
-        var card = CreateCard("Timeline da macro", y, 430);
+        var card = CreateCard(host, "Timeline da macro", y, 430);
         SetupGridColumns();
 
         _eventsGrid.Left = 2;
@@ -429,9 +447,9 @@ public class MainForm : Form
         y += card.Height + 10;
     }
 
-    private void BuildLogSection(ref int y)
+    private void BuildLogSection(Control host, ref int y)
     {
-        var card = CreateCard("Log", y, 154);
+        var card = CreateCard(host, "Log", y, 154);
         _log.Left = 2;
         _log.Top = 34;
         card.Controls.Add(_log);
@@ -452,13 +470,15 @@ public class MainForm : Form
         _eventsGrid.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 250, 252);
         _eventsGrid.RowTemplate.Height = 32;
 
-        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "#", DataPropertyName = nameof(EventRow.Index), Width = 44 });
-        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Action", DataPropertyName = nameof(EventRow.Action), Width = 240 });
-        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Value", DataPropertyName = nameof(EventRow.Value), Width = 356 });
-        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Timestamp (ms)", DataPropertyName = nameof(EventRow.TimestampMs), Width = 120 });
-        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Wait (ms)", DataPropertyName = nameof(EventRow.WaitMs), Width = 100 });
-        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "RawIdx", DataPropertyName = nameof(EventRow.SourceEventIndex), Width = 76 });
-        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Kind", DataPropertyName = nameof(EventRow.Kind), Width = 180 });
+        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Index", HeaderText = "#", DataPropertyName = nameof(EventRow.Index), Width = 44, ReadOnly = true });
+        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Action", HeaderText = "Action", DataPropertyName = nameof(EventRow.Action), Width = 240, ReadOnly = true });
+        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Value", HeaderText = "Value", DataPropertyName = nameof(EventRow.Value), Width = 356 });
+        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "TimestampMs", HeaderText = "Timestamp (ms)", DataPropertyName = nameof(EventRow.TimestampMs), Width = 120, ReadOnly = true });
+        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "WaitMs", HeaderText = "Wait (ms)", DataPropertyName = nameof(EventRow.WaitMs), Width = 100 });
+        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "RawIdx", HeaderText = "RawIdx", DataPropertyName = nameof(EventRow.SourceEventIndex), Width = 76, ReadOnly = true });
+        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Kind", HeaderText = "Kind", DataPropertyName = nameof(EventRow.Kind), Width = 180, ReadOnly = true });
+
+        _eventsGrid.CellEndEdit += (_, e) => ApplyGridEdit(e.RowIndex, e.ColumnIndex);
     }
 
     private void Log(string message)
@@ -771,6 +791,11 @@ public class MainForm : Form
 
         var rows = BuildRows(_currentMacro, options);
         _eventsGrid.DataSource = rows;
+
+        var editable = options.EditMode;
+        _eventsGrid.ReadOnly = !editable;
+        if (_eventsGrid.Columns["Value"] is not null) _eventsGrid.Columns["Value"].ReadOnly = !editable;
+        if (_eventsGrid.Columns["WaitMs"] is not null) _eventsGrid.Columns["WaitMs"].ReadOnly = !editable;
     }
 
     private static List<EventRow> BuildRows(MacroFile macro, InspectRenderOptions options)
@@ -1043,6 +1068,120 @@ public class MainForm : Form
         }
 
         return string.Join(", ", ev.Data.Select(pair => $"{pair.Key}={pair.Value}"));
+    }
+
+    private void ApplyGridEdit(int rowIndex, int columnIndex)
+    {
+        if (_currentMacro is null || !_editMode.Checked || rowIndex < 0 || columnIndex < 0)
+        {
+            return;
+        }
+
+        if (_eventsGrid.Rows[rowIndex].DataBoundItem is not EventRow row || row.SourceEventIndex is not int sourceIndex)
+        {
+            return;
+        }
+
+        var colName = _eventsGrid.Columns[columnIndex].Name;
+        var input = _eventsGrid.Rows[rowIndex].Cells[columnIndex].Value?.ToString() ?? string.Empty;
+
+        var ok = colName switch
+        {
+            "Value" => TryApplyValueEdit(sourceIndex, row.Kind, input),
+            "WaitMs" => TryApplyWaitEdit(sourceIndex, input),
+            _ => false
+        };
+
+        if (!ok)
+        {
+            Log("Edição inválida para esta linha. Use formato esperado.");
+            RefreshGrid();
+            return;
+        }
+
+        _hasUnsavedChanges = true;
+        RefreshGrid();
+    }
+
+    private bool TryApplyValueEdit(int sourceIndex, string kind, string input)
+    {
+        if (_currentMacro is null || sourceIndex < 0 || sourceIndex >= _currentMacro.Events.Count)
+        {
+            return false;
+        }
+
+        var ev = _currentMacro.Events[sourceIndex];
+        input = input.Trim();
+
+        if (kind is "key_down" or "key_up")
+        {
+            ev.Data["key"] = input;
+            return !string.IsNullOrWhiteSpace(input);
+        }
+
+        if (kind == "mouse_wheel")
+        {
+            var raw = input.Replace("delta=", "", StringComparison.OrdinalIgnoreCase).Trim();
+            if (!int.TryParse(raw, out var delta)) return false;
+            ev.Data["delta"] = delta.ToString();
+            return true;
+        }
+
+        if (kind == "mouse_move")
+        {
+            var target = input.Contains("->", StringComparison.Ordinal)
+                ? input.Split("->", 2, StringSplitOptions.TrimEntries)[1]
+                : input;
+
+            if (!TryParsePoint(target, out var x, out var y)) return false;
+            ev.Data["x"] = x.ToString();
+            ev.Data["y"] = y.ToString();
+            return true;
+        }
+
+        if (kind is "mouse_down" or "mouse_up")
+        {
+            if (!TryParsePoint(input, out var x, out var y)) return false;
+            ev.Data["x"] = x.ToString();
+            ev.Data["y"] = y.ToString();
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool TryApplyWaitEdit(int sourceIndex, string input)
+    {
+        if (_currentMacro is null || sourceIndex < 0 || sourceIndex >= _currentMacro.Events.Count)
+        {
+            return false;
+        }
+
+        var raw = input.Replace("ms", "", StringComparison.OrdinalIgnoreCase).Trim();
+        if (!long.TryParse(raw, out var waitMs) || waitMs < 0)
+        {
+            return false;
+        }
+
+        var prevTs = sourceIndex > 0 ? _currentMacro.Events[sourceIndex - 1].TimestampMs : 0;
+        var oldTs = _currentMacro.Events[sourceIndex].TimestampMs;
+        var newTs = prevTs + waitMs;
+        var delta = newTs - oldTs;
+
+        for (var i = sourceIndex; i < _currentMacro.Events.Count; i++)
+        {
+            _currentMacro.Events[i].TimestampMs += delta;
+        }
+
+        return true;
+    }
+
+    private static bool TryParsePoint(string raw, out int x, out int y)
+    {
+        x = 0;
+        y = 0;
+        var parts = raw.Split(',', StringSplitOptions.TrimEntries);
+        return parts.Length == 2 && int.TryParse(parts[0], out x) && int.TryParse(parts[1], out y);
     }
 
     private async Task AnalyzeAsync()

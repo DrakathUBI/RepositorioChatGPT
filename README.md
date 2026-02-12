@@ -17,6 +17,8 @@ Atendendo ao pedido, o projeto agora é um **aplicativo desktop em C#/.NET (Wind
 - Presets de velocidade (lento/normal/rápido/muito rápido) para ajuste rápido.
 - Replay parcial a partir da linha selecionada no inspetor (baseado no `RawIdx`).
 - Atalho `ESC` para parar replay imediatamente.
+- Interface separada por abas: **Gravação e Replay** / **Inspeção e Edição** para reduzir poluição visual.
+- Edição real no inspetor em **Modo edição** (valor e wait por linha), com persistência ao salvar.
 - Parâmetros (`{{nome}}`) para reutilizar macros.
 - Modo IA opcional com Gemini (`GEMINI_API_KEY`).
 
