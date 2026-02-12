@@ -23,7 +23,7 @@ Atendendo ao pedido, o projeto agora é um **aplicativo desktop em C#/.NET (Wind
 - Undo/Redo na edição com `Ctrl+Z` e `Ctrl+Y`.
 - Captura/replay de teclado aprimorada com `text_input` para preservar digitação real (ex.: `2026/1`) e combinações como `Ctrl+C` / `Ctrl+V`.
 - Digitação contínua é agrupada automaticamente: se a próxima tecla vier em até 2s, ela entra no mesmo bloco de texto.
-- Loop por variável CSV: defina nome (ex.: `periodo`) e valores (ex.: `2027/1,2027/2`, separados por vírgula, `;` ou quebra de linha) para executar a macro do zero em cada valor e parar automaticamente no final (encerra ao acabar a lista). Se o nome ficar vazio, usa `value`/`item` como fallback.
+- Loop por variável CSV: defina nome (ex.: `periodo`) e valores (ex.: `2027/1,2027/2`, separados por vírgula, `;` ou quebra de linha) para executar a macro do zero em cada valor e parar automaticamente no final (encerra ao acabar a lista). Também aceita formato único `periodo:2025/2;2026/1;2026/2`. Se o nome ficar vazio, usa `value`/`item` como fallback.
 - Edição de texto digitado no inspetor (`text_input`) para ajustar exatamente o que será escrito no replay.
 - Painel **Ações e variáveis** na aba de inspeção para inserir, atualizar, duplicar, mover e excluir ações sem editar JSON.
 - Hotkeys de edição de timeline: `Ctrl+D` (duplicar), `Alt+↑`/`Alt+↓` (mover ação).
