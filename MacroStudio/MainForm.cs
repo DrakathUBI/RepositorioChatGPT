@@ -872,14 +872,52 @@ public class MainForm : Form
             return new();
         }
 
-        var separators = includeSemicolon
-            ? new[] { ',', ';', (char)10, (char)13 }
-            : new[] { ',', (char)10, (char)13 };
+        var output = new List<string>();
+        var token = new StringBuilder();
+        var inQuotes = false;
 
-        return raw
-            .Split(separators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .ToList();
+        for (var i = 0; i < raw.Length; i++)
+        {
+            var ch = raw[i];
+
+            if (ch == '"')
+            {
+                if (inQuotes && i + 1 < raw.Length && raw[i + 1] == '"')
+                {
+                    token.Append('"');
+                    i++;
+                    continue;
+                }
+
+                inQuotes = !inQuotes;
+                continue;
+            }
+
+            var isLineBreak = ch == (char)10 || ch == (char)13;
+            var isSeparator = ch == ',' || (includeSemicolon && ch == ';') || isLineBreak;
+
+            if (!inQuotes && isSeparator)
+            {
+                var value = token.ToString().Trim();
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    output.Add(value);
+                }
+
+                token.Clear();
+                continue;
+            }
+
+            token.Append(ch);
+        }
+
+        var finalValue = token.ToString().Trim();
+        if (!string.IsNullOrWhiteSpace(finalValue))
+        {
+            output.Add(finalValue);
+        }
+
+        return output;
     }
 
     private static List<VariableSeries> ParseVariableLoopSets(string variableNameRaw, string variableValuesRaw)
@@ -915,7 +953,7 @@ public class MainForm : Form
         }
 
         var normalizedName = variableNameRaw.Trim();
-        var normalizedValues = ParseDelimitedValues(variableValuesRaw, includeSemicolon: false);
+        var normalizedValues = ParseDelimitedValues(variableValuesRaw, includeSemicolon: true);
 
         if (string.IsNullOrWhiteSpace(normalizedName))
         {
