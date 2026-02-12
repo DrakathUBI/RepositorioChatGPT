@@ -8,11 +8,24 @@ Atendendo ao pedido, o projeto agora é um **aplicativo desktop em C#/.NET (Wind
 - Tela de inspeção no próprio app com tabela de ações (`Action`, `Value`, `Timestamp`, `Wait`, `Kind`).
 - Filtro de inspeção por tipo: **Tudo / Cliques / Movimento mouse / Teclado / Espera**.
 - Modo **Compactar mouse moves** para agrupar trajetórias em blocos `Mouse move (xN)` com origem→destino final.
-- Playback filter com checkboxes: **Mouse moves**, **Mouse clicks**, **Key presses**, **Wait times**.
+- Playback filter com checkboxes: **Mouse moves**, **Mouse clicks**, **Key presses**, **Wait times** (na aba de inspeção).
 - Modo **Visão natural (menos spam)** com limiar de `Wait mínimo (ms)` para esconder pausas curtas e deixar a timeline mais limpa.
-- **Modo edição (ações reais)** para excluir ações diretamente na tabela (sem editar JSON na mão).
+- Edição sempre real na timeline (sem modo extra): altere valores/waits diretamente e teste sem depender de JSON salvo.
 - Replay direto da macro em memória (você pode testar alterações sem salvar antes).
+- Macro temporária em memória ao parar gravação sem escolher arquivo; salve apenas se quiser reutilizar depois.
 - Replay da macro com controle de velocidade.
+- Replay com **loop** (repetições automáticas), **delay inicial** e **jitter de timing** para execução menos robótica.
+- Presets de velocidade (lento/normal/rápido/muito rápido) para ajuste rápido.
+- Replay parcial a partir da linha selecionada no inspetor (baseado no `RawIdx`).
+- Atalho `ESC` para parar replay imediatamente.
+- Interface separada por abas: **Gravação e Replay** / **Inspeção e Edição** para reduzir poluição visual.
+- Aba **Configurações de Hotkeys** para definir atalhos de iniciar/parar gravação e iniciar/parar replay.
+- Undo/Redo na edição com `Ctrl+Z` e `Ctrl+Y`.
+- Captura/replay de teclado aprimorada com `text_input` para preservar digitação real (ex.: `2026/1`) e combinações como `Ctrl+C` / `Ctrl+V`.
+- Loop por variável CSV: defina nome (ex.: `periodo`) e valores (ex.: `2027/1,2027/2`) para executar a macro do zero em cada valor e parar automaticamente no final.
+- Edição de texto digitado no inspetor (`text_input`) para ajustar exatamente o que será escrito no replay.
+- Painel **Ações e variáveis** na aba de inspeção para inserir, atualizar, duplicar, mover e excluir ações sem editar JSON.
+- Hotkeys de edição de timeline: `Ctrl+D` (duplicar), `Alt+↑`/`Alt+↓` (mover ação).
 - Parâmetros (`{{nome}}`) para reutilizar macros.
 - Modo IA opcional com Gemini (`GEMINI_API_KEY`).
 
@@ -20,8 +33,6 @@ Atendendo ao pedido, o projeto agora é um **aplicativo desktop em C#/.NET (Wind
 
 - Windows 10/11
 - Conexão de internet para baixar o SDK na primeira execução (se não tiver `dotnet` já instalado).
-
-## Quero rodar **na mesma máquina**, sem admin
 
 ## Fluxo rápido (se você vai baixar ZIP do GitHub)
 
@@ -48,6 +59,7 @@ cd .\dist
 
 > Se der erro de política ao rodar script (`ExecutionPolicy`), use o mesmo comando com `-ExecutionPolicy Bypass` como mostrado acima.
 
+## Quero rodar **na mesma máquina**, sem admin
 
 Sem usar outra máquina: rode o script abaixo, que instala o .NET SDK **só no seu usuário** (`%USERPROFILE%\.dotnet`) e gera o `.exe`.
 
@@ -240,3 +252,21 @@ dist\MacroStudio.exe
 - O app roda em contexto de usuário. Não precisa admin para uso normal.
 - Alguns antivírus/Windows podem solicitar permissões por causa de hook global de entrada.
 - Em máquinas corporativas com proteção avançada, captura/replay de teclado e mouse pode ser bloqueada por política de segurança.
+
+## Evolução contínua (base Macro Recorder)
+
+Este projeto foi estruturado para crescer com funcionalidades inspiradas em macro recorders profissionais.
+
+Já implementado nesta base:
+- gravação global de teclado/mouse;
+- filtros por tipo no playback;
+- compactação de `mouse_move` para reduzir spam;
+- loop, delay inicial e jitter no replay;
+- edição em memória da timeline e replay parcial a partir da seleção;
+- stop por tecla (`ESC`) durante replay.
+
+Próximas funções candidatas para evolução:
+- agendamento (executar em horário específico);
+- triggers por hotkey global (iniciar/reproduzir/pausar);
+- repetição condicional (até imagem/pixel/condição);
+- biblioteca de ações avançadas (texto, clipboard, janela ativa, OCR).
