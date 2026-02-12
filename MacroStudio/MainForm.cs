@@ -66,6 +66,7 @@ public class MainForm : Form
         Width = 1180;
         Height = 860;
         StartPosition = FormStartPosition.CenterScreen;
+        KeyPreview = true;
         BackColor = Color.FromArgb(245, 247, 251);
         Font = new Font("Segoe UI", 10F, FontStyle.Regular, GraphicsUnit.Point);
 
@@ -468,6 +469,11 @@ public class MainForm : Form
         {
             Log("Replay interrompido pelo usuário.");
         }
+        finally
+        {
+            _playCts?.Dispose();
+            _playCts = null;
+        }
     }
 
     private async Task<MacroFile?> ResolveMacroForPlaybackAsync()
@@ -490,6 +496,18 @@ public class MainForm : Form
     private void StopPlay()
     {
         _playCts?.Cancel();
+    }
+
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (keyData == Keys.Escape && _playCts is not null && !_playCts.IsCancellationRequested)
+        {
+            StopPlay();
+            Log("Replay interrompido via ESC.");
+            return true;
+        }
+
+        return base.ProcessCmdKey(ref msg, keyData);
     }
 
     private async Task LoadAndRenderMacroAsync()

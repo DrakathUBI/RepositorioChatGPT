@@ -177,9 +177,10 @@ public class MacroPlayerService
     public async Task PlayAsync(MacroFile macro, Dictionary<string, string> parameters, double speed, CancellationToken ct, PlaybackFilterOptions? options = null)
     {
         options ??= new PlaybackFilterOptions();
+        var playbackEvents = BuildPlaybackEvents(macro.Events, options);
 
         long previous = 0;
-        foreach (var ev in macro.Events)
+        foreach (var ev in playbackEvents)
         {
             ct.ThrowIfCancellationRequested();
             var delay = Math.Max((ev.TimestampMs - previous) / Math.Max(speed, 0.1), 0);
@@ -188,14 +189,61 @@ public class MacroPlayerService
                 await Task.Delay((int)delay, ct);
             }
 
-            if (ShouldPlayEvent(ev.Kind, options))
-            {
-                var data = ev.Data.ToDictionary(kvp => kvp.Key, kvp => ApplyParameters(kvp.Value, parameters));
-                Execute(ev.Kind, data);
-            }
+            var data = ev.Data.ToDictionary(kvp => kvp.Key, kvp => ApplyParameters(kvp.Value, parameters));
+            Execute(ev.Kind, data);
 
             previous = ev.TimestampMs;
         }
+    }
+
+    private static List<MacroEvent> BuildPlaybackEvents(IEnumerable<MacroEvent> events, PlaybackFilterOptions options)
+    {
+        var filtered = events
+            .Where(ev => ShouldPlayEvent(ev.Kind, options))
+            .Select(ev => new MacroEvent
+            {
+                Kind = ev.Kind,
+                TimestampMs = ev.TimestampMs,
+                Data = new Dictionary<string, string>(ev.Data)
+            })
+            .ToList();
+
+        return CompactMouseMoves(filtered);
+    }
+
+    private static List<MacroEvent> CompactMouseMoves(List<MacroEvent> events)
+    {
+        if (events.Count == 0)
+        {
+            return events;
+        }
+
+        var compacted = new List<MacroEvent>(events.Count);
+        MacroEvent? pendingMove = null;
+
+        foreach (var ev in events)
+        {
+            if (ev.Kind == "mouse_move")
+            {
+                pendingMove = ev;
+                continue;
+            }
+
+            if (pendingMove is not null)
+            {
+                compacted.Add(pendingMove);
+                pendingMove = null;
+            }
+
+            compacted.Add(ev);
+        }
+
+        if (pendingMove is not null)
+        {
+            compacted.Add(pendingMove);
+        }
+
+        return compacted;
     }
 
     private static bool ShouldPlayEvent(string kind, PlaybackFilterOptions options)
