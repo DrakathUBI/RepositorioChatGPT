@@ -48,6 +48,11 @@ public class MainForm : Form
     private readonly TextBox _designerLabel = new() { Width = 160, Text = "" };
     private readonly TextBox _designerComment = new() { Width = 340, Text = "" };
 
+    private readonly TextBox _hkStartRecord = new() { Width = 120, Text = "Ctrl+R" };
+    private readonly TextBox _hkStopRecord = new() { Width = 120, Text = "Ctrl+Shift+R" };
+    private readonly TextBox _hkPlay = new() { Width = 120, Text = "Ctrl+P" };
+    private readonly TextBox _hkStopPlay = new() { Width = 120, Text = "Ctrl+Shift+P" };
+
     private readonly DataGridView _eventsGrid = new()
     {
         Width = 1140,
@@ -155,21 +160,25 @@ public class MainForm : Form
 
         var playbackPage = new TabPage("Gravação e Replay") { BackColor = Color.FromArgb(239, 242, 247), AutoScroll = true };
         var inspectorPage = new TabPage("Inspeção e Edição") { BackColor = Color.FromArgb(239, 242, 247), AutoScroll = true };
+        var hotkeysPage = new TabPage("Configurações de Hotkeys") { BackColor = Color.FromArgb(239, 242, 247), AutoScroll = true };
 
         tabs.TabPages.Add(playbackPage);
         tabs.TabPages.Add(inspectorPage);
+        tabs.TabPages.Add(hotkeysPage);
         Controls.Add(tabs);
 
         var yPlayback = 12;
         BuildMacroFileSection(playbackPage, ref yPlayback);
         BuildActionSection(playbackPage, ref yPlayback);
-        BuildShortcutSection(playbackPage, ref yPlayback);
         BuildLogSection(playbackPage, ref yPlayback);
 
         var yInspector = 12;
         BuildFilterSection(inspectorPage, ref yInspector);
         BuildMacroDesignerSection(inspectorPage, ref yInspector);
         BuildGridSection(inspectorPage, ref yInspector);
+
+        var yHotkeys = 12;
+        BuildHotkeysConfigSection(hotkeysPage, ref yHotkeys);
     }
 
     private Panel CreateCard(Control host, string title, int y, int height)
@@ -374,45 +383,58 @@ public class MainForm : Form
         card.Controls.Add(btnPlay);
         card.Controls.Add(btnStopPlay);
 
-        _playMouseMoves.Left = 560;
-        _playMouseMoves.Top = 138;
-        _playMouseClicks.Left = 676;
-        _playMouseClicks.Top = 138;
-        _playKeyPresses.Left = 790;
-        _playKeyPresses.Top = 138;
-        _playWaitTimes.Left = 903;
-        _playWaitTimes.Top = 138;
-
-        StyleToggle(_playMouseMoves);
-        StyleToggle(_playMouseClicks);
-        StyleToggle(_playKeyPresses);
-        StyleToggle(_playWaitTimes);
-
-        card.Controls.Add(_playMouseMoves);
-        card.Controls.Add(_playMouseClicks);
-        card.Controls.Add(_playKeyPresses);
-        card.Controls.Add(_playWaitTimes);
-
         y += card.Height + 10;
     }
 
-    private void BuildShortcutSection(Control host, ref int y)
+    private void BuildHotkeysConfigSection(Control host, ref int y)
     {
-        var card = CreateCard(host, "Painel de atalhos", y, 134);
+        var card = CreateCard(host, "Configuração de atalhos", y, 210);
 
-        var hint = new Label
+        card.Controls.Add(new Label { Left = 14, Top = 44, Width = 300, Text = "Iniciar gravação", ForeColor = Color.FromArgb(75, 85, 99) });
+        _hkStartRecord.Left = 160;
+        _hkStartRecord.Top = 40;
+        StyleInput(_hkStartRecord);
+        card.Controls.Add(_hkStartRecord);
+
+        card.Controls.Add(new Label { Left = 320, Top = 44, Width = 300, Text = "Parar gravação", ForeColor = Color.FromArgb(75, 85, 99) });
+        _hkStopRecord.Left = 440;
+        _hkStopRecord.Top = 40;
+        StyleInput(_hkStopRecord);
+        card.Controls.Add(_hkStopRecord);
+
+        card.Controls.Add(new Label { Left = 14, Top = 84, Width = 300, Text = "Reproduzir gravação", ForeColor = Color.FromArgb(75, 85, 99) });
+        _hkPlay.Left = 160;
+        _hkPlay.Top = 80;
+        StyleInput(_hkPlay);
+        card.Controls.Add(_hkPlay);
+
+        card.Controls.Add(new Label { Left = 320, Top = 84, Width = 300, Text = "Parar replay", ForeColor = Color.FromArgb(75, 85, 99) });
+        _hkStopPlay.Left = 440;
+        _hkStopPlay.Top = 80;
+        StyleInput(_hkStopPlay);
+        card.Controls.Add(_hkStopPlay);
+
+        var btnDefaults = CreateGhostButton("Restaurar padrão", 14, 126, 150);
+        btnDefaults.Click += (_, _) =>
         {
-            Left = 14,
-            Top = 40,
-            Width = 1110,
-            Height = 78,
-            ForeColor = Color.FromArgb(55, 65, 81),
-            Text = "Ctrl+S/Ctrl+P: reproduzir   |   Ctrl+Shift+S: salvar macro   |   Ctrl+O: abrir arquivo\n"
-                 + "Ctrl+I: inspecionar macro   |   Ctrl+R: iniciar gravação   |   Ctrl+Shift+R: parar gravação\n"
-                 + "Ctrl+Shift+P ou ESC: parar replay   |   Ctrl+Alt+P: repetir último replay"
+            _hkStartRecord.Text = "Ctrl+R";
+            _hkStopRecord.Text = "Ctrl+Shift+R";
+            _hkPlay.Text = "Ctrl+P";
+            _hkStopPlay.Text = "Ctrl+Shift+P";
+            Log("Hotkeys restauradas para o padrão.");
         };
 
-        card.Controls.Add(hint);
+        card.Controls.Add(btnDefaults);
+        card.Controls.Add(new Label
+        {
+            Left = 176,
+            Top = 132,
+            Width = 920,
+            Height = 56,
+            ForeColor = Color.FromArgb(75, 85, 99),
+            Text = "Formato aceito: Ctrl+R, Ctrl+Shift+R, Alt+P, F8 etc. ESC continua como parada rápida de replay."
+        });
+
         y += card.Height + 10;
     }
 
@@ -502,7 +524,7 @@ public class MainForm : Form
 
     private void BuildFilterSection(Control host, ref int y)
     {
-        var card = CreateCard(host, "Inspeção inteligente", y, 124);
+        var card = CreateCard(host, "Inspeção inteligente", y, 164);
 
         card.Controls.Add(new Label { Left = 14, Top = 44, Width = 50, Text = "Filtro", ForeColor = Color.FromArgb(75, 85, 99) });
         _inspectFilter.Left = 64;
@@ -541,9 +563,30 @@ public class MainForm : Form
         btnRefresh.Click += (_, _) => RefreshGrid();
         card.Controls.Add(btnRefresh);
 
-        var btnDeleteSelected = CreateGhostButton("Excluir selecionada", 14, 78, 150);
-        var btnDeleteFiltered = CreateGhostButton("Excluir filtradas", 170, 78, 130);
-        var btnSaveEdits = CreatePrimaryButton("Salvar alterações", 306, 78, 150);
+        _playMouseMoves.Left = 14;
+        _playMouseMoves.Top = 80;
+        _playMouseClicks.Left = 128;
+        _playMouseClicks.Top = 80;
+        _playKeyPresses.Left = 246;
+        _playKeyPresses.Top = 80;
+        _playWaitTimes.Left = 358;
+        _playWaitTimes.Top = 80;
+        _playMouseMoves.CheckedChanged += (_, _) => Log("Filtro de replay atualizado.");
+        _playMouseClicks.CheckedChanged += (_, _) => Log("Filtro de replay atualizado.");
+        _playKeyPresses.CheckedChanged += (_, _) => Log("Filtro de replay atualizado.");
+        _playWaitTimes.CheckedChanged += (_, _) => Log("Filtro de replay atualizado.");
+        StyleToggle(_playMouseMoves);
+        StyleToggle(_playMouseClicks);
+        StyleToggle(_playKeyPresses);
+        StyleToggle(_playWaitTimes);
+        card.Controls.Add(_playMouseMoves);
+        card.Controls.Add(_playMouseClicks);
+        card.Controls.Add(_playKeyPresses);
+        card.Controls.Add(_playWaitTimes);
+
+        var btnDeleteSelected = CreateGhostButton("Excluir selecionada", 500, 74, 150);
+        var btnDeleteFiltered = CreateGhostButton("Excluir filtradas", 656, 74, 130);
+        var btnSaveEdits = CreatePrimaryButton("Salvar alterações", 792, 74, 150);
 
         btnDeleteSelected.Click += (_, _) => DeleteSelectedAction();
         btnDeleteFiltered.Click += (_, _) => DeleteFilteredActions();
@@ -850,12 +893,6 @@ public class MainForm : Form
             return true;
         }
 
-        if (keyData == (Keys.Control | Keys.S))
-        {
-            _ = InvokeShortcutAsync(PlayAsync);
-            return true;
-        }
-
         if (keyData == (Keys.Control | Keys.Shift | Keys.S))
         {
             _ = InvokeShortcutAsync(SaveCurrentMacroAsync);
@@ -874,25 +911,25 @@ public class MainForm : Form
             return true;
         }
 
-        if (keyData == (Keys.Control | Keys.R))
+        if (IsHotkeyPressed(keyData, _hkStartRecord.Text, Keys.Control | Keys.R))
         {
             _ = InvokeShortcutAsync(StartRecordAsync);
             return true;
         }
 
-        if (keyData == (Keys.Control | Keys.Shift | Keys.R))
+        if (IsHotkeyPressed(keyData, _hkStopRecord.Text, Keys.Control | Keys.Shift | Keys.R))
         {
             _ = InvokeShortcutAsync(StopRecordAsync);
             return true;
         }
 
-        if (keyData == (Keys.Control | Keys.P))
+        if (IsHotkeyPressed(keyData, _hkPlay.Text, Keys.Control | Keys.P) || keyData == (Keys.Control | Keys.S))
         {
             _ = InvokeShortcutAsync(PlayAsync);
             return true;
         }
 
-        if (keyData == (Keys.Control | Keys.Shift | Keys.P))
+        if (IsHotkeyPressed(keyData, _hkStopPlay.Text, Keys.Control | Keys.Shift | Keys.P))
         {
             StopPlay();
             return true;
@@ -923,6 +960,63 @@ public class MainForm : Form
         }
 
         return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    private static bool IsHotkeyPressed(Keys pressed, string configured, Keys fallback)
+    {
+        if (TryParseHotkey(configured, out var parsed))
+        {
+            return pressed == parsed;
+        }
+
+        return pressed == fallback;
+    }
+
+    private static bool TryParseHotkey(string raw, out Keys parsed)
+    {
+        parsed = Keys.None;
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return false;
+        }
+
+        var tokens = raw.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (tokens.Length == 0)
+        {
+            return false;
+        }
+
+        Keys result = Keys.None;
+        foreach (var token in tokens)
+        {
+            if (token.Equals("CTRL", StringComparison.OrdinalIgnoreCase))
+            {
+                result |= Keys.Control;
+                continue;
+            }
+
+            if (token.Equals("SHIFT", StringComparison.OrdinalIgnoreCase))
+            {
+                result |= Keys.Shift;
+                continue;
+            }
+
+            if (token.Equals("ALT", StringComparison.OrdinalIgnoreCase))
+            {
+                result |= Keys.Alt;
+                continue;
+            }
+
+            if (!Enum.TryParse<Keys>(token, true, out var keyPart))
+            {
+                return false;
+            }
+
+            result |= keyPart;
+        }
+
+        parsed = result;
+        return parsed != Keys.None;
     }
 
     private async Task InvokeShortcutAsync(Func<Task> action)

@@ -8,7 +8,7 @@ Atendendo ao pedido, o projeto agora é um **aplicativo desktop em C#/.NET (Wind
 - Tela de inspeção no próprio app com tabela de ações (`Action`, `Value`, `Timestamp`, `Wait`, `Kind`).
 - Filtro de inspeção por tipo: **Tudo / Cliques / Movimento mouse / Teclado / Espera**.
 - Modo **Compactar mouse moves** para agrupar trajetórias em blocos `Mouse move (xN)` com origem→destino final.
-- Playback filter com checkboxes: **Mouse moves**, **Mouse clicks**, **Key presses**, **Wait times**.
+- Playback filter com checkboxes: **Mouse moves**, **Mouse clicks**, **Key presses**, **Wait times** (na aba de inspeção).
 - Modo **Visão natural (menos spam)** com limiar de `Wait mínimo (ms)` para esconder pausas curtas e deixar a timeline mais limpa.
 - **Modo edição (ações reais)** para excluir ações diretamente na tabela (sem editar JSON na mão).
 - Replay direto da macro em memória (você pode testar alterações sem salvar antes).
@@ -18,7 +18,7 @@ Atendendo ao pedido, o projeto agora é um **aplicativo desktop em C#/.NET (Wind
 - Replay parcial a partir da linha selecionada no inspetor (baseado no `RawIdx`).
 - Atalho `ESC` para parar replay imediatamente.
 - Interface separada por abas: **Gravação e Replay** / **Inspeção e Edição** para reduzir poluição visual.
-- Painel de atalhos com comandos rápidos (`Ctrl+S`, `Ctrl+P`, `Ctrl+Shift+S`, `Ctrl+O`, `Ctrl+I`, `Ctrl+R`, `Ctrl+Shift+R`, `Ctrl+Shift+P`, `Ctrl+Alt+P`).
+- Aba **Configurações de Hotkeys** para definir atalhos de iniciar/parar gravação e iniciar/parar replay.
 - Edição real no inspetor em **Modo edição** (valor e wait por linha), com persistência ao salvar.
 - Captura/replay de teclado aprimorada com `text_input` para preservar digitação real (ex.: `2026/1`) e combinações como `Ctrl+C` / `Ctrl+V`.
 - Loop por variável CSV: defina nome (ex.: `periodo`) e valores (ex.: `2027/1,2027/2`) para executar a macro do zero em cada valor e parar automaticamente no final.
