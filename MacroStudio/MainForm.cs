@@ -14,6 +14,8 @@ public class MainForm : Form
     private readonly TextBox _startDelayMs = new() { Width = 80, Text = "0" };
     private readonly TextBox _jitterMs = new() { Width = 80, Text = "0" };
     private readonly ComboBox _speedPreset = new() { Width = 126, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly TextBox _variableName = new() { Width = 100, Text = "periodo" };
+    private readonly TextBox _variableValues = new() { Width = 520, Text = "" };
 
     private readonly TextBox _log = new()
     {
@@ -295,7 +297,7 @@ public class MainForm : Form
 
     private void BuildActionSection(Control host, ref int y)
     {
-        var card = CreateCard(host, "Record and Playback", y, 164);
+        var card = CreateCard(host, "Record and Playback", y, 202);
 
         card.Controls.Add(new Label { Left = 14, Top = 44, Width = 86, Text = "Parâmetros", ForeColor = Color.FromArgb(75, 85, 99) });
         _params.Left = 105;
@@ -347,10 +349,22 @@ public class MainForm : Form
         StyleInput(_jitterMs);
         card.Controls.Add(_jitterMs);
 
-        var btnRecord = CreatePrimaryButton("● Gravar", 700, 78, 110);
-        var btnStopRecord = CreateGhostButton("■ Parar Gravação", 816, 78, 136);
-        var btnPlay = CreatePrimaryButton("▶ Reproduzir", 958, 78, 90);
-        var btnStopPlay = CreateGhostButton("■ Parar", 1052, 78, 80);
+        card.Controls.Add(new Label { Left = 14, Top = 118, Width = 106, Text = "Nome variável", ForeColor = Color.FromArgb(75, 85, 99) });
+        _variableName.Left = 120;
+        _variableName.Top = 114;
+        StyleInput(_variableName);
+        card.Controls.Add(_variableName);
+
+        card.Controls.Add(new Label { Left = 232, Top = 118, Width = 174, Text = "Valores CSV (loop automático)", ForeColor = Color.FromArgb(75, 85, 99) });
+        _variableValues.Left = 406;
+        _variableValues.Top = 114;
+        StyleInput(_variableValues);
+        card.Controls.Add(_variableValues);
+
+        var btnRecord = CreatePrimaryButton("● Gravar", 700, 114, 110);
+        var btnStopRecord = CreateGhostButton("■ Parar Gravação", 816, 114, 136);
+        var btnPlay = CreatePrimaryButton("▶ Reproduzir", 958, 114, 90);
+        var btnStopPlay = CreateGhostButton("■ Parar", 1052, 114, 80);
 
         btnRecord.Click += async (_, _) => await StartRecordAsync();
         btnStopRecord.Click += async (_, _) => await StopRecordAsync();
@@ -363,13 +377,13 @@ public class MainForm : Form
         card.Controls.Add(btnStopPlay);
 
         _playMouseMoves.Left = 700;
-        _playMouseMoves.Top = 84;
+        _playMouseMoves.Top = 120;
         _playMouseClicks.Left = 796;
-        _playMouseClicks.Top = 84;
+        _playMouseClicks.Top = 120;
         _playKeyPresses.Left = 896;
-        _playKeyPresses.Top = 84;
+        _playKeyPresses.Top = 120;
         _playWaitTimes.Left = 1002;
-        _playWaitTimes.Top = 84;
+        _playWaitTimes.Top = 120;
 
         StyleToggle(_playMouseMoves);
         StyleToggle(_playMouseClicks);
@@ -594,6 +608,9 @@ public class MainForm : Form
             DelayJitterMs = ParseNonNegativeInt(_jitterMs.Text, 0)
         };
 
+        var variableName = _variableName.Text.Trim();
+        var variableValues = ParseCsvValues(_variableValues.Text);
+
         var selectedRowStart = _eventsGrid.SelectedRows.Count > 0
             ? _eventsGrid.SelectedRows[0].DataBoundItem as EventRow
             : null;
@@ -630,14 +647,47 @@ public class MainForm : Form
             _lastReplaySpeed = speed;
             _lastReplayOptions = playbackOptions;
 
-            await _player.PlayAsync(
-                macro,
-                parameters,
-                speed,
-                _playCts.Token,
-                playbackOptions
-            );
-            Log("Replay concluído.");
+            if (variableValues.Count > 0 && !string.IsNullOrWhiteSpace(variableName))
+            {
+                var sequenceOptions = new PlaybackFilterOptions
+                {
+                    PlayMouseMoves = playbackOptions.PlayMouseMoves,
+                    PlayMouseClicks = playbackOptions.PlayMouseClicks,
+                    PlayKeyPresses = playbackOptions.PlayKeyPresses,
+                    RespectWaitTimes = playbackOptions.RespectWaitTimes,
+                    LoopCount = 1,
+                    StartDelayMs = playbackOptions.StartDelayMs,
+                    DelayJitterMs = playbackOptions.DelayJitterMs
+                };
+
+                _lastReplayOptions = sequenceOptions;
+
+                for (var i = 0; i < variableValues.Count; i++)
+                {
+                    _playCts.Token.ThrowIfCancellationRequested();
+                    var loopParameters = new Dictionary<string, string>(parameters)
+                    {
+                        [variableName] = variableValues[i]
+                    };
+
+                    _lastReplayParameters = new Dictionary<string, string>(loopParameters);
+                    Log($"Loop variável {i + 1}/{variableValues.Count}: {variableName}={variableValues[i]}");
+                    await _player.PlayAsync(macro, loopParameters, speed, _playCts.Token, sequenceOptions);
+                }
+
+                Log("Replay concluído (todas variáveis processadas).");
+            }
+            else
+            {
+                await _player.PlayAsync(
+                    macro,
+                    parameters,
+                    speed,
+                    _playCts.Token,
+                    playbackOptions
+                );
+                Log("Replay concluído.");
+            }
         }
         catch (OperationCanceledException)
         {
@@ -671,6 +721,19 @@ public class MainForm : Form
     private static int ParseNonNegativeInt(string raw, int fallback)
     {
         return int.TryParse(raw, out var value) && value >= 0 ? value : fallback;
+    }
+
+    private static List<string> ParseCsvValues(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return new();
+        }
+
+        return raw
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .ToList();
     }
 
     private async Task<MacroFile?> ResolveMacroForPlaybackAsync()
@@ -1161,7 +1224,7 @@ public class MainForm : Form
         {
             "Cliques" => kind is "mouse_down" or "mouse_up",
             "Movimento mouse" => kind is "mouse_move" or "mouse_move_group",
-            "Teclado" => kind is "key_down" or "key_up",
+            "Teclado" => kind is "key_down" or "key_up" or "text_input",
             "Espera" => kind == "wait",
             _ => true
         };
@@ -1177,6 +1240,7 @@ public class MainForm : Form
             "mouse_wheel" => "Mouse wheel",
             "key_down" => "Key down",
             "key_up" => "Key up",
+            "text_input" => "Text input",
             _ => ev.Kind
         };
     }
@@ -1213,6 +1277,11 @@ public class MainForm : Form
         if (ev.Kind is "key_down" or "key_up")
         {
             return ev.Data.GetValueOrDefault("key", "");
+        }
+
+        if (ev.Kind == "text_input")
+        {
+            return ev.Data.GetValueOrDefault("text", "");
         }
 
         return string.Join(", ", ev.Data.Select(pair => $"{pair.Key}={pair.Value}"));
@@ -1265,6 +1334,12 @@ public class MainForm : Form
         {
             ev.Data["key"] = input;
             return !string.IsNullOrWhiteSpace(input);
+        }
+
+        if (kind == "text_input")
+        {
+            ev.Data["text"] = input;
+            return true;
         }
 
         if (kind == "mouse_wheel")

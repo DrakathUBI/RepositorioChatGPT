@@ -21,6 +21,8 @@ Atendendo ao pedido, o projeto agora é um **aplicativo desktop em C#/.NET (Wind
 - Painel de atalhos com comandos rápidos (`Ctrl+S`, `Ctrl+P`, `Ctrl+Shift+S`, `Ctrl+O`, `Ctrl+I`, `Ctrl+R`, `Ctrl+Shift+R`, `Ctrl+Shift+P`, `Ctrl+Alt+P`).
 - Edição real no inspetor em **Modo edição** (valor e wait por linha), com persistência ao salvar.
 - Captura/replay de teclado aprimorada com `text_input` para preservar digitação real (ex.: `2026/1`) e combinações como `Ctrl+C` / `Ctrl+V`.
+- Loop por variável CSV: defina nome (ex.: `periodo`) e valores (ex.: `2027/1,2027/2`) para executar a macro do zero em cada valor e parar automaticamente no final.
+- Edição de texto digitado no inspetor (`text_input`) para ajustar exatamente o que será escrito no replay.
 - Parâmetros (`{{nome}}`) para reutilizar macros.
 - Modo IA opcional com Gemini (`GEMINI_API_KEY`).
 
