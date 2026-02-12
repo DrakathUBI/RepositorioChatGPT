@@ -33,8 +33,6 @@ Atendendo ao pedido, o projeto agora é um **aplicativo desktop em C#/.NET (Wind
 - Windows 10/11
 - Conexão de internet para baixar o SDK na primeira execução (se não tiver `dotnet` já instalado).
 
-## Quero rodar **na mesma máquina**, sem admin
-
 ## Fluxo rápido (se você vai baixar ZIP do GitHub)
 
 Perfeito — esse é o caminho mais simples no seu cenário.
@@ -60,6 +58,7 @@ cd .\dist
 
 > Se der erro de política ao rodar script (`ExecutionPolicy`), use o mesmo comando com `-ExecutionPolicy Bypass` como mostrado acima.
 
+## Quero rodar **na mesma máquina**, sem admin
 
 Sem usar outra máquina: rode o script abaixo, que instala o .NET SDK **só no seu usuário** (`%USERPROFILE%\.dotnet`) e gera o `.exe`.
 
@@ -270,4 +269,3 @@ Próximas funções candidatas para evolução:
 - triggers por hotkey global (iniciar/reproduzir/pausar);
 - repetição condicional (até imagem/pixel/condição);
 - biblioteca de ações avançadas (texto, clipboard, janela ativa, OCR).
-
