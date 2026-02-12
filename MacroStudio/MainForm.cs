@@ -64,6 +64,10 @@ public class MainForm : Form
     private MacroFile? _currentMacro;
     private bool _hasUnsavedChanges;
     private Label? _statusLabel;
+    private MacroFile? _lastReplayMacro;
+    private Dictionary<string, string> _lastReplayParameters = new();
+    private double _lastReplaySpeed = 1.0;
+    private PlaybackFilterOptions _lastReplayOptions = new();
 
     public MainForm()
     {
@@ -152,6 +156,7 @@ public class MainForm : Form
         var yPlayback = 12;
         BuildMacroFileSection(playbackPage, ref yPlayback);
         BuildActionSection(playbackPage, ref yPlayback);
+        BuildShortcutSection(playbackPage, ref yPlayback);
         BuildLogSection(playbackPage, ref yPlayback);
 
         var yInspector = 12;
@@ -379,6 +384,26 @@ public class MainForm : Form
         y += card.Height + 10;
     }
 
+    private void BuildShortcutSection(Control host, ref int y)
+    {
+        var card = CreateCard(host, "Painel de atalhos", y, 134);
+
+        var hint = new Label
+        {
+            Left = 14,
+            Top = 40,
+            Width = 1110,
+            Height = 78,
+            ForeColor = Color.FromArgb(55, 65, 81),
+            Text = "Ctrl+S: salvar macro editada   |   Ctrl+O: abrir arquivo   |   Ctrl+I: inspecionar macro\n"
+                 + "Ctrl+R: iniciar gravação   |   Ctrl+Shift+R: parar gravação   |   Ctrl+P: reproduzir\n"
+                 + "Ctrl+Shift+P ou ESC: parar replay   |   Ctrl+Alt+P: repetir último replay"
+        };
+
+        card.Controls.Add(hint);
+        y += card.Height + 10;
+    }
+
     private void BuildFilterSection(Control host, ref int y)
     {
         var card = CreateCard(host, "Inspeção inteligente", y, 124);
@@ -541,6 +566,12 @@ public class MainForm : Form
 
     private async Task PlayAsync()
     {
+        if (_playCts is not null && !_playCts.IsCancellationRequested)
+        {
+            Log("Replay já está em execução.");
+            return;
+        }
+
         var macro = await ResolveMacroForPlaybackAsync();
         if (macro is null)
         {
@@ -552,6 +583,17 @@ public class MainForm : Form
         var speed = double.TryParse(_speed.Text, out var s) ? s : 1.0;
 
         _playCts = new CancellationTokenSource();
+        var playbackOptions = new PlaybackFilterOptions
+        {
+            PlayMouseMoves = _playMouseMoves.Checked,
+            PlayMouseClicks = _playMouseClicks.Checked,
+            PlayKeyPresses = _playKeyPresses.Checked,
+            RespectWaitTimes = _playWaitTimes.Checked,
+            LoopCount = ParsePositiveInt(_loopCount.Text, 1),
+            StartDelayMs = ParseNonNegativeInt(_startDelayMs.Text, 0),
+            DelayJitterMs = ParseNonNegativeInt(_jitterMs.Text, 0)
+        };
+
         var selectedRowStart = _eventsGrid.SelectedRows.Count > 0
             ? _eventsGrid.SelectedRows[0].DataBoundItem as EventRow
             : null;
@@ -572,21 +614,28 @@ public class MainForm : Form
 
         try
         {
+            _lastReplayMacro = new MacroFile
+            {
+                Name = macro.Name,
+                CreatedAt = macro.CreatedAt,
+                Metadata = new Dictionary<string, string>(macro.Metadata),
+                Events = macro.Events.Select(ev => new MacroEvent
+                {
+                    Kind = ev.Kind,
+                    TimestampMs = ev.TimestampMs,
+                    Data = new Dictionary<string, string>(ev.Data)
+                }).ToList()
+            };
+            _lastReplayParameters = new Dictionary<string, string>(parameters);
+            _lastReplaySpeed = speed;
+            _lastReplayOptions = playbackOptions;
+
             await _player.PlayAsync(
                 macro,
                 parameters,
                 speed,
                 _playCts.Token,
-                new PlaybackFilterOptions
-                {
-                    PlayMouseMoves = _playMouseMoves.Checked,
-                    PlayMouseClicks = _playMouseClicks.Checked,
-                    PlayKeyPresses = _playKeyPresses.Checked,
-                    RespectWaitTimes = _playWaitTimes.Checked,
-                    LoopCount = ParsePositiveInt(_loopCount.Text, 1),
-                    StartDelayMs = ParseNonNegativeInt(_startDelayMs.Text, 0),
-                    DelayJitterMs = ParseNonNegativeInt(_jitterMs.Text, 0)
-                }
+                playbackOptions
             );
             Log("Replay concluído.");
         }
@@ -655,7 +704,100 @@ public class MainForm : Form
             return true;
         }
 
+        if (keyData == (Keys.Control | Keys.S))
+        {
+            _ = InvokeShortcutAsync(SaveCurrentMacroAsync);
+            return true;
+        }
+
+        if (keyData == (Keys.Control | Keys.O))
+        {
+            BrowseMacro();
+            return true;
+        }
+
+        if (keyData == (Keys.Control | Keys.I))
+        {
+            _ = InvokeShortcutAsync(LoadAndRenderMacroAsync);
+            return true;
+        }
+
+        if (keyData == (Keys.Control | Keys.R))
+        {
+            _ = InvokeShortcutAsync(StartRecordAsync);
+            return true;
+        }
+
+        if (keyData == (Keys.Control | Keys.Shift | Keys.R))
+        {
+            _ = InvokeShortcutAsync(StopRecordAsync);
+            return true;
+        }
+
+        if (keyData == (Keys.Control | Keys.P))
+        {
+            _ = InvokeShortcutAsync(PlayAsync);
+            return true;
+        }
+
+        if (keyData == (Keys.Control | Keys.Shift | Keys.P))
+        {
+            StopPlay();
+            return true;
+        }
+
+        if (keyData == (Keys.Control | Keys.Alt | Keys.P))
+        {
+            _ = InvokeShortcutAsync(ReplayLastAsync);
+            return true;
+        }
+
         return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    private async Task InvokeShortcutAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            Log($"Erro no atalho: {ex.Message}");
+        }
+    }
+
+    private async Task ReplayLastAsync()
+    {
+        if (_lastReplayMacro is null)
+        {
+            Log("Ainda não existe último replay para repetir.");
+            return;
+        }
+
+        if (_playCts is not null && !_playCts.IsCancellationRequested)
+        {
+            Log("Replay já está em execução.");
+            return;
+        }
+
+        _playCts = new CancellationTokenSource();
+        Log($"Repetindo último replay: {_lastReplayMacro.Name}...");
+
+        try
+        {
+            await _player.PlayAsync(_lastReplayMacro, _lastReplayParameters, _lastReplaySpeed, _playCts.Token, _lastReplayOptions);
+            Log("Repetição concluída.");
+        }
+        catch (OperationCanceledException)
+        {
+            Log("Repetição interrompida pelo usuário.");
+        }
+        finally
+        {
+            _playCts?.Dispose();
+            _playCts = null;
+        }
     }
 
     private async Task LoadAndRenderMacroAsync()
