@@ -720,8 +720,6 @@ public class MainForm : Form
         };
 
         var variableName = _variableName.Text.Trim();
-        var variableValues = ParseCsvValues(_variableValues.Text);
-        NormalizeVariableInputs(ref variableName, ref variableValues);
 
         var selectedRowStart = _eventsGrid.SelectedRows.Count > 0
             ? _eventsGrid.SelectedRows[0].DataBoundItem as EventRow
@@ -759,7 +757,8 @@ public class MainForm : Form
             _lastReplaySpeed = speed;
             _lastReplayOptions = playbackOptions;
 
-            if (variableValues.Count > 0)
+            var variableSets = ParseVariableLoopSets(variableName, _variableValues.Text);
+            if (variableSets.Count > 0)
             {
                 var sequenceOptions = new PlaybackFilterOptions
                 {
@@ -774,30 +773,42 @@ public class MainForm : Form
 
                 _lastReplayOptions = sequenceOptions;
 
-                var effectiveVariableName = string.IsNullOrWhiteSpace(variableName) ? "value" : variableName;
-                if (string.IsNullOrWhiteSpace(variableName))
-                {
-                    Log("Nome variável vazio: usando padrão 'value' para o loop da lista.");
-                }
+                var maxIterations = variableSets.Max(v => v.Values.Count);
+                var variableOrder = variableSets.Select(v => v.Name).ToList();
 
-                for (var i = 0; i < variableValues.Count; i++)
+                for (var i = 0; i < maxIterations; i++)
                 {
                     _playCts.Token.ThrowIfCancellationRequested();
-                    var currentValue = variableValues[i];
-                    var loopParameters = new Dictionary<string, string>(parameters)
+
+                    var loopValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var variable in variableSets)
                     {
-                        [effectiveVariableName] = currentValue,
-                        ["value"] = currentValue,
-                        ["item"] = currentValue
-                    };
+                        var currentValue = i < variable.Values.Count
+                            ? variable.Values[i]
+                            : variable.Values[^1];
+                        loopValues[variable.Name] = currentValue;
+                    }
+
+                    var loopParameters = new Dictionary<string, string>(parameters, StringComparer.OrdinalIgnoreCase);
+                    foreach (var pair in loopValues)
+                    {
+                        loopParameters[pair.Key] = pair.Value;
+                    }
+
+                    if (variableSets.Count > 0)
+                    {
+                        var primaryValue = loopValues[variableSets[0].Name];
+                        loopParameters["value"] = primaryValue;
+                        loopParameters["item"] = primaryValue;
+                    }
 
                     _lastReplayParameters = new Dictionary<string, string>(loopParameters);
-                    var macroForIteration = BuildMacroForVariableIteration(macro, effectiveVariableName, currentValue);
-                    Log($"Loop variável {i + 1}/{variableValues.Count}: {effectiveVariableName}={currentValue}");
+                    var macroForIteration = BuildMacroForVariableIteration(macro, loopValues, variableOrder);
+                    Log($"Loop variável {i + 1}/{maxIterations}: " + string.Join(", ", loopValues.Select(kv => $"{kv.Key}={kv.Value}")));
                     await _player.PlayAsync(macroForIteration, loopParameters, speed, _playCts.Token, sequenceOptions);
                 }
 
-                Log("Replay concluído (todas variáveis processadas). Loop encerrado ao fim da lista.");
+                Log("Replay concluído (todas variáveis processadas). Loop encerrado ao fim da lista de variáveis.");
             }
             else
             {
@@ -858,64 +869,119 @@ public class MainForm : Form
             .ToList();
     }
 
-    private static void NormalizeVariableInputs(ref string variableName, ref List<string> variableValues)
+    private static List<VariableSeries> ParseVariableLoopSets(string variableNameRaw, string variableValuesRaw)
     {
-        if (variableValues.Count > 0)
+        var output = new List<VariableSeries>();
+
+        var valueLines = variableValuesRaw
+            .Split(new[] { (char)10, (char)13 }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .ToList();
+
+        foreach (var line in valueLines)
         {
-            return;
+            var separator = line.IndexOf(':');
+            if (separator <= 0 || separator >= line.Length - 1)
+            {
+                continue;
+            }
+
+            var name = line[..separator].Trim();
+            var values = ParseCsvValues(line[(separator + 1)..]);
+            if (string.IsNullOrWhiteSpace(name) || values.Count == 0)
+            {
+                continue;
+            }
+
+            output.Add(new VariableSeries(name, values));
         }
 
-        if (string.IsNullOrWhiteSpace(variableName))
+        if (output.Count > 0)
         {
-            return;
+            return output;
         }
 
-        var separatorIndex = variableName.IndexOf(':');
-        if (separatorIndex <= 0 || separatorIndex >= variableName.Length - 1)
+        var normalizedName = variableNameRaw.Trim();
+        var normalizedValues = ParseCsvValues(variableValuesRaw);
+
+        if (normalizedValues.Count == 0)
         {
-            return;
+            var inlineSeparator = normalizedName.IndexOf(':');
+            if (inlineSeparator > 0 && inlineSeparator < normalizedName.Length - 1)
+            {
+                var inlineName = normalizedName[..inlineSeparator].Trim();
+                var inlineValues = ParseCsvValues(normalizedName[(inlineSeparator + 1)..]);
+                if (!string.IsNullOrWhiteSpace(inlineName) && inlineValues.Count > 0)
+                {
+                    output.Add(new VariableSeries(inlineName, inlineValues));
+                    return output;
+                }
+            }
+
+            return output;
         }
 
-        var parsedName = variableName[..separatorIndex].Trim();
-        var parsedValuesRaw = variableName[(separatorIndex + 1)..].Trim();
-        var parsedValues = ParseCsvValues(parsedValuesRaw);
-        if (string.IsNullOrWhiteSpace(parsedName) || parsedValues.Count == 0)
+        var names = ParseCsvValues(normalizedName);
+        if (names.Count == 0)
         {
-            return;
+            names.Add("value");
         }
 
-        variableName = parsedName;
-        variableValues = parsedValues;
+        if (names.Count == 1)
+        {
+            output.Add(new VariableSeries(names[0], normalizedValues));
+            return output;
+        }
+
+        foreach (var name in names)
+        {
+            output.Add(new VariableSeries(name, normalizedValues));
+        }
+
+        return output;
     }
 
-    private static MacroFile BuildMacroForVariableIteration(MacroFile macro, string variableName, string currentValue)
+    private static MacroFile BuildMacroForVariableIteration(MacroFile macro, Dictionary<string, string> iterationValues, IReadOnlyList<string> variableOrder)
     {
         var clone = CloneMacroFile(macro);
-        if (HasVariablePlaceholders(clone, variableName))
+        if (HasVariablePlaceholders(clone, variableOrder))
         {
             return clone;
         }
 
-        var firstTextInput = clone.Events.FirstOrDefault(ev => ev.Kind == "text_input");
-        if (firstTextInput is not null)
+        var textInputs = clone.Events.Where(ev => ev.Kind == "text_input").ToList();
+        for (var i = 0; i < variableOrder.Count && i < textInputs.Count; i++)
         {
-            firstTextInput.Data["text"] = currentValue;
+            var key = variableOrder[i];
+            if (iterationValues.TryGetValue(key, out var currentValue))
+            {
+                textInputs[i].Data["text"] = currentValue;
+            }
+        }
+
+        if (textInputs.Count == 1 && variableOrder.Count >= 1)
+        {
+            var key = variableOrder[0];
+            if (iterationValues.TryGetValue(key, out var currentValue))
+            {
+                textInputs[0].Data["text"] = currentValue;
+            }
         }
 
         return clone;
     }
 
-    private static bool HasVariablePlaceholders(MacroFile macro, string variableName)
+    private static bool HasVariablePlaceholders(MacroFile macro, IEnumerable<string> variableNames)
     {
-        var tokens = new[]
-        {
-            "{{" + variableName + "}}",
-            "{{value}}",
-            "{{item}}",
-            "{" + variableName + "}",
-            "{value}",
-            "{item}"
-        };
+        var names = variableNames.ToList();
+        var tokens = names
+            .SelectMany(name => new[]
+            {
+                "{{" + name + "}}",
+                "{" + name + "}"
+            })
+            .Concat(new[] { "{{value}}", "{{item}}", "{value}", "{item}" })
+            .ToList();
 
         return macro.Events.Any(ev => ev.Data.Values.Any(v => tokens.Any(t => v.Contains(t, StringComparison.OrdinalIgnoreCase))));
     }
@@ -935,6 +1001,8 @@ public class MainForm : Form
             }).ToList()
         };
     }
+
+    private sealed record VariableSeries(string Name, List<string> Values);
 
     private async Task<MacroFile?> ResolveMacroForPlaybackAsync()
     {
