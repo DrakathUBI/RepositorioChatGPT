@@ -81,6 +81,7 @@ public class MainForm : Form
     private readonly Stack<MacroFile> _redoStack = new();
     private int _dragRowStartIndex = -1;
     private Point _dragStartPoint = Point.Empty;
+    private bool _gridRefreshQueued;
 
 
     public MainForm()
@@ -399,39 +400,53 @@ public class MainForm : Form
     private void BuildHotkeysConfigSection(Control host, ref int y)
     {
         EnsureHotkeyDefaults();
-        var card = CreateCard(host, "Configuração de atalhos", y, 210);
+        NormalizeHotkeyTextBoxes();
+        var card = CreateCard(host, "Configuração de atalhos", y, 236);
 
         card.Controls.Add(new Label { Left = 14, Top = 44, Width = 300, Text = "Iniciar gravação", ForeColor = Color.FromArgb(75, 85, 99) });
-        _hkStartRecord.Left = 160;
+        _hkStartRecord.Left = 168;
         _hkStartRecord.Top = 40;
+        _hkStartRecord.Width = 220;
         StyleInput(_hkStartRecord);
         card.Controls.Add(_hkStartRecord);
+        BindHotkeyInput(_hkStartRecord);
+        StyleHotkeyInput(_hkStartRecord);
 
         card.Controls.Add(new Label { Left = 320, Top = 44, Width = 300, Text = "Parar gravação", ForeColor = Color.FromArgb(75, 85, 99) });
-        _hkStopRecord.Left = 440;
+        _hkStopRecord.Left = 486;
         _hkStopRecord.Top = 40;
+        _hkStopRecord.Width = 220;
         StyleInput(_hkStopRecord);
         card.Controls.Add(_hkStopRecord);
+        BindHotkeyInput(_hkStopRecord);
+        StyleHotkeyInput(_hkStopRecord);
 
-        card.Controls.Add(new Label { Left = 14, Top = 84, Width = 300, Text = "Reproduzir gravação", ForeColor = Color.FromArgb(75, 85, 99) });
-        _hkPlay.Left = 160;
-        _hkPlay.Top = 80;
+        card.Controls.Add(new Label { Left = 14, Top = 96, Width = 300, Text = "Reproduzir gravação", ForeColor = Color.FromArgb(75, 85, 99) });
+        _hkPlay.Left = 168;
+        _hkPlay.Top = 92;
+        _hkPlay.Width = 220;
         StyleInput(_hkPlay);
         card.Controls.Add(_hkPlay);
+        BindHotkeyInput(_hkPlay);
+        StyleHotkeyInput(_hkPlay);
 
-        card.Controls.Add(new Label { Left = 320, Top = 84, Width = 300, Text = "Parar replay", ForeColor = Color.FromArgb(75, 85, 99) });
-        _hkStopPlay.Left = 440;
-        _hkStopPlay.Top = 80;
+        card.Controls.Add(new Label { Left = 320, Top = 96, Width = 300, Text = "Parar replay", ForeColor = Color.FromArgb(75, 85, 99) });
+        _hkStopPlay.Left = 486;
+        _hkStopPlay.Top = 92;
+        _hkStopPlay.Width = 220;
         StyleInput(_hkStopPlay);
         card.Controls.Add(_hkStopPlay);
+        BindHotkeyInput(_hkStopPlay);
+        StyleHotkeyInput(_hkStopPlay);
 
-        var btnDefaults = CreateGhostButton("Restaurar padrão", 14, 126, 150);
+        var btnDefaults = CreateGhostButton("Restaurar padrão", 14, 154, 170);
         btnDefaults.Click += (_, _) =>
         {
             _hkStartRecord.Text = "Ctrl+R";
             _hkStopRecord.Text = "Ctrl+Shift+R";
             _hkPlay.Text = "Ctrl+P";
             _hkStopPlay.Text = "Ctrl+Shift+P";
+            NormalizeHotkeyTextBoxes();
             Log("Hotkeys restauradas para o padrão.");
         };
 
@@ -439,14 +454,140 @@ public class MainForm : Form
         card.Controls.Add(new Label
         {
             Left = 176,
-            Top = 132,
+            Top = 156,
             Width = 920,
-            Height = 56,
+            Height = 64,
             ForeColor = Color.FromArgb(75, 85, 99),
-            Text = "Formato aceito: Ctrl+R, Ctrl+Shift+R, Alt+P, F8 etc. ESC continua como parada rápida de replay."
+            Text = "Clique no campo e pressione a combinação desejada. Ex.: Home, Ctrl+S, Alt Gr+Q, Ctrl+Shift+P. ESC continua como parada rápida de replay."
         });
 
         y += card.Height + 10;
+    }
+
+    private static void StyleHotkeyInput(TextBox target)
+    {
+        target.AutoSize = false;
+        target.Height = 34;
+        target.BorderStyle = BorderStyle.FixedSingle;
+        target.TextAlign = HorizontalAlignment.Center;
+        target.Font = new Font("Segoe UI Semibold", 10.5F, FontStyle.Bold, GraphicsUnit.Point);
+        target.BackColor = Color.White;
+        target.ForeColor = Color.FromArgb(17, 24, 39);
+    }
+
+    private void BindHotkeyInput(TextBox target)
+    {
+        target.ReadOnly = true;
+        target.ShortcutsEnabled = false;
+        target.KeyDown -= HotkeyTextBox_KeyDown;
+        target.KeyDown += HotkeyTextBox_KeyDown;
+        target.GotFocus -= HotkeyTextBox_GotFocus;
+        target.GotFocus += HotkeyTextBox_GotFocus;
+        target.KeyPress -= HotkeyTextBox_KeyPress;
+        target.KeyPress += HotkeyTextBox_KeyPress;
+    }
+
+    private void HotkeyTextBox_GotFocus(object? sender, EventArgs e)
+    {
+        if (sender is TextBox tb)
+        {
+            tb.SelectAll();
+        }
+    }
+
+    private void HotkeyTextBox_KeyPress(object? sender, KeyPressEventArgs e)
+    {
+        e.Handled = true;
+    }
+
+    private void NormalizeHotkeyTextBoxes()
+    {
+        _hkStartRecord.Text = NormalizeHotkeyText(_hkStartRecord.Text, "Ctrl+R");
+        _hkStopRecord.Text = NormalizeHotkeyText(_hkStopRecord.Text, "Ctrl+Shift+R");
+        _hkPlay.Text = NormalizeHotkeyText(_hkPlay.Text, "Ctrl+P");
+        _hkStopPlay.Text = NormalizeHotkeyText(_hkStopPlay.Text, "Ctrl+Shift+P");
+    }
+
+    private static string NormalizeHotkeyText(string raw, string fallback)
+    {
+        if (TryParseHotkey(raw, out var parsed))
+        {
+            return FormatHotkey(parsed);
+        }
+
+        if (TryParseHotkey(fallback, out var fallbackParsed))
+        {
+            return FormatHotkey(fallbackParsed);
+        }
+
+        return fallback;
+    }
+
+    private void HotkeyTextBox_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox tb)
+        {
+            return;
+        }
+
+        e.SuppressKeyPress = true;
+        e.Handled = true;
+
+        if (e.KeyCode == Keys.Back || e.KeyCode == Keys.Delete)
+        {
+            tb.Clear();
+            return;
+        }
+
+        var keyData = e.KeyData;
+        var keyCode = e.KeyCode;
+        if (keyCode == Keys.ControlKey || keyCode == Keys.ShiftKey || keyCode == Keys.Menu)
+        {
+            return;
+        }
+
+        tb.Text = FormatHotkey(keyData);
+    }
+
+    private static string FormatHotkey(Keys hotkey)
+    {
+        var parts = new List<string>();
+        var modifiers = hotkey & Keys.Modifiers;
+        var keyCode = hotkey & Keys.KeyCode;
+
+        var hasCtrl = (modifiers & Keys.Control) == Keys.Control;
+        var hasAlt = (modifiers & Keys.Alt) == Keys.Alt;
+        var hasShift = (modifiers & Keys.Shift) == Keys.Shift;
+
+        if (hasCtrl && hasAlt)
+        {
+            parts.Add("Alt Gr");
+        }
+        else
+        {
+            if (hasCtrl) parts.Add("Ctrl");
+            if (hasAlt) parts.Add("Alt");
+        }
+
+        if (hasShift)
+        {
+            parts.Add("Shift");
+        }
+
+        if (keyCode != Keys.None)
+        {
+            parts.Add(keyCode.ToString());
+        }
+
+        return string.Join("+", parts);
+    }
+
+    private bool IsEditingHotkeyField()
+    {
+        return ActiveControl == _hkStartRecord
+            || ActiveControl == _hkStopRecord
+            || ActiveControl == _hkPlay
+            || ActiveControl == _hkStopPlay;
     }
 
     private void BuildMacroDesignerSection(Control host, ref int y)
@@ -768,16 +909,16 @@ public class MainForm : Form
             var variableSets = ParseVariableLoopSets(variableName, _variableValues.Text);
             if (variableSets.Count > 0)
             {
-                var sequenceOptions = new PlaybackFilterOptions
-                {
-                    PlayMouseMoves = playbackOptions.PlayMouseMoves,
-                    PlayMouseClicks = playbackOptions.PlayMouseClicks,
-                    PlayKeyPresses = playbackOptions.PlayKeyPresses,
-                    RespectWaitTimes = playbackOptions.RespectWaitTimes,
-                    LoopCount = 1,
-                    StartDelayMs = playbackOptions.StartDelayMs,
-                    DelayJitterMs = playbackOptions.DelayJitterMs
-                };
+            var sequenceOptions = new PlaybackFilterOptions
+            {
+                PlayMouseMoves = playbackOptions.PlayMouseMoves,
+                PlayMouseClicks = playbackOptions.PlayMouseClicks,
+                PlayKeyPresses = playbackOptions.PlayKeyPresses,
+                RespectWaitTimes = playbackOptions.RespectWaitTimes,
+                LoopCount = playbackOptions.LoopCount,
+                StartDelayMs = playbackOptions.StartDelayMs,
+                DelayJitterMs = playbackOptions.DelayJitterMs
+            };
 
                 _lastReplayOptions = sequenceOptions;
 
@@ -871,14 +1012,52 @@ public class MainForm : Form
             return new();
         }
 
-        var separators = includeSemicolon
-            ? new[] { ',', ';', (char)10, (char)13 }
-            : new[] { ',', (char)10, (char)13 };
+        var output = new List<string>();
+        var token = new StringBuilder();
+        var inQuotes = false;
 
-        return raw
-            .Split(separators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .ToList();
+        for (var i = 0; i < raw.Length; i++)
+        {
+            var ch = raw[i];
+
+            if (ch == '"')
+            {
+                if (inQuotes && i + 1 < raw.Length && raw[i + 1] == '"')
+                {
+                    token.Append('"');
+                    i++;
+                    continue;
+                }
+
+                inQuotes = !inQuotes;
+                continue;
+            }
+
+            var isLineBreak = ch == (char)10 || ch == (char)13;
+            var isSeparator = ch == ',' || (includeSemicolon && ch == ';') || isLineBreak;
+
+            if (!inQuotes && isSeparator)
+            {
+                var value = token.ToString().Trim();
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    output.Add(value);
+                }
+
+                token.Clear();
+                continue;
+            }
+
+            token.Append(ch);
+        }
+
+        var finalValue = token.ToString().Trim();
+        if (!string.IsNullOrWhiteSpace(finalValue))
+        {
+            output.Add(finalValue);
+        }
+
+        return output;
     }
 
     private static List<VariableSeries> ParseVariableLoopSets(string variableNameRaw, string variableValuesRaw)
@@ -914,7 +1093,7 @@ public class MainForm : Form
         }
 
         var normalizedName = variableNameRaw.Trim();
-        var normalizedValues = ParseDelimitedValues(variableValuesRaw, includeSemicolon: false);
+        var normalizedValues = ParseDelimitedValues(variableValuesRaw, includeSemicolon: true);
 
         if (string.IsNullOrWhiteSpace(normalizedName))
         {
@@ -961,16 +1140,52 @@ public class MainForm : Form
     private static MacroFile BuildMacroForVariableIteration(MacroFile macro, Dictionary<string, string> iterationValues, IReadOnlyList<string> variableOrder)
     {
         var clone = CloneMacroFile(macro);
-        if (HasVariablePlaceholders(clone, variableOrder))
+        var hasInlineTokens = false;
+
+        foreach (var ev in clone.Events)
         {
-            return clone;
+            var keys = ev.Data.Keys.ToList();
+            foreach (var key in keys)
+            {
+                var value = ev.Data[key];
+                var replaced = value;
+
+                foreach (var pair in iterationValues)
+                {
+                    replaced = replaced
+                        .Replace("{{" + pair.Key + "}}", pair.Value, StringComparison.OrdinalIgnoreCase)
+                        .Replace("{" + pair.Key + "}", pair.Value, StringComparison.OrdinalIgnoreCase);
+                }
+
+                if (variableOrder.Count > 0 && iterationValues.TryGetValue(variableOrder[0], out var primaryValue))
+                {
+                    replaced = replaced
+                        .Replace("{{value}}", primaryValue, StringComparison.OrdinalIgnoreCase)
+                        .Replace("{value}", primaryValue, StringComparison.OrdinalIgnoreCase)
+                        .Replace("{{item}}", primaryValue, StringComparison.OrdinalIgnoreCase)
+                        .Replace("{item}", primaryValue, StringComparison.OrdinalIgnoreCase);
+                }
+
+                if (!string.Equals(value, replaced, StringComparison.Ordinal))
+                {
+                    hasInlineTokens = true;
+                }
+
+                ev.Data[key] = replaced;
+            }
         }
 
         var textInputs = clone.Events.Where(ev => ev.Kind == "text_input").ToList();
         for (var i = 0; i < variableOrder.Count && i < textInputs.Count; i++)
         {
-            var key = variableOrder[i];
-            if (iterationValues.TryGetValue(key, out var currentValue))
+            var variableKey = variableOrder[i];
+            if (!iterationValues.TryGetValue(variableKey, out var currentValue))
+            {
+                continue;
+            }
+
+            var existingText = textInputs[i].Data.GetValueOrDefault("text", string.Empty);
+            if (!hasInlineTokens || string.IsNullOrWhiteSpace(existingText))
             {
                 textInputs[i].Data["text"] = currentValue;
             }
@@ -981,26 +1196,15 @@ public class MainForm : Form
             var key = variableOrder[0];
             if (iterationValues.TryGetValue(key, out var currentValue))
             {
-                textInputs[0].Data["text"] = currentValue;
+                var existingText = textInputs[0].Data.GetValueOrDefault("text", string.Empty);
+                if (!hasInlineTokens || string.IsNullOrWhiteSpace(existingText))
+                {
+                    textInputs[0].Data["text"] = currentValue;
+                }
             }
         }
 
         return clone;
-    }
-
-    private static bool HasVariablePlaceholders(MacroFile macro, IEnumerable<string> variableNames)
-    {
-        var names = variableNames.ToList();
-        var tokens = names
-            .SelectMany(name => new[]
-            {
-                "{{" + name + "}}",
-                "{" + name + "}"
-            })
-            .Concat(new[] { "{{value}}", "{{item}}", "{value}", "{item}" })
-            .ToList();
-
-        return macro.Events.Any(ev => ev.Data.Values.Any(v => tokens.Any(t => v.Contains(t, StringComparison.OrdinalIgnoreCase))));
     }
 
     private static MacroFile CloneMacroFile(MacroFile source)
@@ -1052,6 +1256,11 @@ public class MainForm : Form
             return true;
         }
 
+        if (TryCaptureHotkeyFromEditor(keyData))
+        {
+            return true;
+        }
+
         if (keyData == (Keys.Control | Keys.Shift | Keys.S))
         {
             _ = InvokeShortcutAsync(SaveCurrentMacroAsync);
@@ -1082,7 +1291,7 @@ public class MainForm : Form
             return true;
         }
 
-        if (IsHotkeyPressed(keyData, _hkPlay.Text, Keys.Control | Keys.P) || keyData == (Keys.Control | Keys.S))
+        if (IsHotkeyPressed(keyData, _hkPlay.Text, Keys.Control | Keys.P))
         {
             _ = InvokeShortcutAsync(PlayAsync);
             return true;
@@ -1139,6 +1348,29 @@ public class MainForm : Form
         return base.ProcessCmdKey(ref msg, keyData);
     }
 
+    private bool TryCaptureHotkeyFromEditor(Keys keyData)
+    {
+        if (!IsEditingHotkeyField() || ActiveControl is not TextBox tb)
+        {
+            return false;
+        }
+
+        var keyCode = keyData & Keys.KeyCode;
+        if (keyCode == Keys.Back || keyCode == Keys.Delete)
+        {
+            tb.Clear();
+            return true;
+        }
+
+        if (keyCode == Keys.ControlKey || keyCode == Keys.ShiftKey || keyCode == Keys.Menu)
+        {
+            return true;
+        }
+
+        tb.Text = FormatHotkey(keyData);
+        return true;
+    }
+
     private static bool IsHotkeyPressed(Keys pressed, string configured, Keys fallback)
     {
         if (TryParseHotkey(configured, out var parsed))
@@ -1164,23 +1396,31 @@ public class MainForm : Form
         }
 
         Keys result = Keys.None;
-        foreach (var token in tokens)
+        foreach (var tokenRaw in tokens)
         {
-            if (token.Equals("CTRL", StringComparison.OrdinalIgnoreCase))
+            var token = tokenRaw.Trim();
+            var normalized = token.Replace(" ", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
+            if (normalized is "CTRL" or "CONTROL")
             {
                 result |= Keys.Control;
                 continue;
             }
 
-            if (token.Equals("SHIFT", StringComparison.OrdinalIgnoreCase))
+            if (normalized == "SHIFT")
             {
                 result |= Keys.Shift;
                 continue;
             }
 
-            if (token.Equals("ALT", StringComparison.OrdinalIgnoreCase))
+            if (normalized == "ALT")
             {
                 result |= Keys.Alt;
+                continue;
+            }
+
+            if (normalized is "ALTGR" or "ALTRIGHT")
+            {
+                result |= Keys.Control | Keys.Alt;
                 continue;
             }
 
@@ -1193,7 +1433,8 @@ public class MainForm : Form
         }
 
         parsed = result;
-        return parsed != Keys.None;
+        var keyCode = parsed & Keys.KeyCode;
+        return parsed != Keys.None && keyCode != Keys.None;
     }
 
     private void PushUndoState()
@@ -1379,14 +1620,7 @@ public class MainForm : Form
         var anchorDisplayIndex = _eventsGrid.CurrentCell?.RowIndex ?? Math.Max(selectedRows.Min(r => r.Index) - 1, 0);
         var topIndex = _eventsGrid.FirstDisplayedScrollingRowIndex;
 
-        var removableIndexes = selectedRows
-            .Where(r => r.Kind != "wait")
-            .SelectMany(r => new int?[] { r.SourceEventIndex, r.SecondarySourceEventIndex })
-            .Where(i => i.HasValue)
-            .Select(i => i!.Value)
-            .Distinct()
-            .OrderByDescending(i => i)
-            .ToList();
+        var removableIndexes = CollectRemovableIndexes(selectedRows);
 
         var waitRows = selectedRows
             .Where(r => r.Kind == "wait" && r.WaitMs > 0)
@@ -1449,14 +1683,7 @@ public class MainForm : Form
             return;
         }
 
-        var indexes = bound
-            .Where(r => r.Kind != "wait")
-            .SelectMany(r => new int?[] { r.SourceEventIndex, r.SecondarySourceEventIndex })
-            .Where(i => i.HasValue)
-            .Select(i => i!.Value)
-            .Distinct()
-            .OrderByDescending(i => i)
-            .ToList();
+        var indexes = CollectRemovableIndexes(bound);
 
         var waitRows = bound
             .Where(r => r.Kind == "wait" && r.WaitMs > 0)
@@ -1497,6 +1724,39 @@ public class MainForm : Form
         RefreshGrid();
         RestoreGridPosition(0, 0);
         Log($"{indexes.Count} ações removidas e {waitRows.Count} esperas removidas com base no filtro atual.");
+    }
+
+    private static List<int> CollectRemovableIndexes(IEnumerable<EventRow> rows)
+    {
+        var indexes = new HashSet<int>();
+        foreach (var row in rows.Where(r => r.Kind != "wait"))
+        {
+            if (row.Kind == "mouse_move_group"
+                && row.SourceEventIndex is int firstMoveIndex
+                && row.SecondarySourceEventIndex is int lastMoveIndex)
+            {
+                var start = Math.Min(firstMoveIndex, lastMoveIndex);
+                var end = Math.Max(firstMoveIndex, lastMoveIndex);
+                for (var i = start; i <= end; i++)
+                {
+                    indexes.Add(i);
+                }
+
+                continue;
+            }
+
+            if (row.SourceEventIndex is int sourceIndex)
+            {
+                indexes.Add(sourceIndex);
+            }
+
+            if (row.SecondarySourceEventIndex is int secondaryIndex)
+            {
+                indexes.Add(secondaryIndex);
+            }
+        }
+
+        return indexes.OrderByDescending(i => i).ToList();
     }
 
     private void RefreshGrid()
@@ -1588,6 +1848,7 @@ public class MainForm : Form
                 {
                     moveAggregation = new MoveAggregation
                     {
+                        FirstSourceEventIndex = i,
                         StartX = startX,
                         StartY = startY,
                         EndX = moveX,
@@ -1791,7 +2052,8 @@ public class MainForm : Form
             TimestampMs = aggregation.LastTimestampMs,
             WaitMs = aggregation.TotalWaitMs,
             Kind = "mouse_move_group",
-            SourceEventIndex = null
+            SourceEventIndex = aggregation.FirstSourceEventIndex,
+            SecondarySourceEventIndex = aggregation.LastSourceEventIndex
         };
 
         if (MatchInspectFilter(options.Filter, moveRow.Kind, options))
@@ -1903,16 +2165,62 @@ public class MainForm : Form
             return;
         }
 
-        if (!TryBuildEventFromDesigner(_currentMacro.Events.LastOrDefault()?.TimestampMs ?? 0, out var newEvent))
+        var insertAfterIndex = ResolveSelectedInsertAnchorIndex();
+        var baseTimestamp = insertAfterIndex >= 0 && insertAfterIndex < _currentMacro.Events.Count
+            ? _currentMacro.Events[insertAfterIndex].TimestampMs
+            : _currentMacro.Events.LastOrDefault()?.TimestampMs ?? 0;
+
+        if (!TryBuildEventFromDesigner(baseTimestamp, out var newEvent))
         {
             return;
         }
 
         PushUndoState();
-        _currentMacro.Events.Add(newEvent);
+        var targetInsertIndex = insertAfterIndex + 1;
+        if (targetInsertIndex >= 0 && targetInsertIndex <= _currentMacro.Events.Count)
+        {
+            _currentMacro.Events.Insert(targetInsertIndex, newEvent);
+        }
+        else
+        {
+            _currentMacro.Events.Add(newEvent);
+        }
+
         _hasUnsavedChanges = true;
         RefreshGrid();
-        Log($"Ação '{newEvent.Kind}' inserida no final da macro.");
+        Log($"Ação '{newEvent.Kind}' inserida abaixo da linha selecionada.");
+    }
+
+    private int ResolveSelectedInsertAnchorIndex()
+    {
+        if (_currentMacro is null || _eventsGrid.SelectedRows.Count == 0)
+        {
+            return _currentMacro?.Events.Count - 1 ?? -1;
+        }
+
+        if (_eventsGrid.SelectedRows[0].DataBoundItem is not EventRow row)
+        {
+            return _currentMacro.Events.Count - 1;
+        }
+
+        if (row.SecondarySourceEventIndex is int secondary && secondary >= 0 && secondary < _currentMacro.Events.Count)
+        {
+            return secondary;
+        }
+
+        if (row.SourceEventIndex is int source && source >= 0 && source < _currentMacro.Events.Count)
+        {
+            return source;
+        }
+
+        var fallback = _currentMacro.Events
+            .Select((ev, idx) => new { ev, idx })
+            .Where(x => x.ev.TimestampMs <= row.TimestampMs)
+            .Select(x => x.idx)
+            .DefaultIfEmpty(_currentMacro.Events.Count - 1)
+            .Max();
+
+        return Math.Clamp(fallback, -1, _currentMacro.Events.Count - 1);
     }
 
     private void UpdateSelectedActionFromDesigner()
@@ -1935,7 +2243,37 @@ public class MainForm : Form
         }
 
         PushUndoState();
-        _currentMacro.Events[idx] = updated;
+        if (row.Kind == "mouse_click"
+            && row.SecondarySourceEventIndex is int upIdx
+            && upIdx > idx
+            && upIdx < _currentMacro.Events.Count)
+        {
+            _currentMacro.Events[idx] = new MacroEvent
+            {
+                Kind = "mouse_down",
+                TimestampMs = updated.TimestampMs,
+                Data = new Dictionary<string, string>(updated.Data)
+            };
+
+            var upData = new Dictionary<string, string>
+            {
+                ["x"] = updated.Data.GetValueOrDefault("x", "0"),
+                ["y"] = updated.Data.GetValueOrDefault("y", "0"),
+                ["button"] = updated.Data.GetValueOrDefault("button", "Left")
+            };
+
+            _currentMacro.Events[upIdx] = new MacroEvent
+            {
+                Kind = "mouse_up",
+                TimestampMs = Math.Max(updated.TimestampMs, _currentMacro.Events[upIdx].TimestampMs),
+                Data = upData
+            };
+        }
+        else
+        {
+            _currentMacro.Events[idx] = updated;
+        }
+
         _hasUnsavedChanges = true;
         RefreshGrid();
         Log($"Ação na linha selecionada atualizada ({updated.Kind}).");
@@ -1953,7 +2291,7 @@ public class MainForm : Form
                 "Wait" => "wait",
                 "Key down" => "key_down",
                 "Key up" => "key_up",
-                "Mouse left click" => "mouse_down",
+                "Mouse left click" => "mouse_click",
                 _ => "text_input"
             },
             TimestampMs = baseTimestamp,
@@ -1977,7 +2315,7 @@ public class MainForm : Form
             case "key_up":
                 result.Data["key"] = rawValue;
                 break;
-            case "mouse_down":
+            case "mouse_click":
                 if (!string.IsNullOrWhiteSpace(rawValue) && TryParsePoint(rawValue, out var x, out var y))
                 {
                     result.Data["x"] = x.ToString();
@@ -2122,7 +2460,8 @@ public class MainForm : Form
 
     private void EventsGrid_DragOver(object? sender, DragEventArgs e)
     {
-        if (!e.Data.GetDataPresent(typeof(int)))
+        var dragData = e.Data;
+        if (dragData is null || !dragData.GetDataPresent(typeof(int)))
         {
             e.Effect = DragDropEffects.None;
             return;
@@ -2133,12 +2472,13 @@ public class MainForm : Form
 
     private void EventsGrid_DragDrop(object? sender, DragEventArgs e)
     {
-        if (_currentMacro is null || !e.Data.GetDataPresent(typeof(int)))
+        var dragData = e.Data;
+        if (_currentMacro is null || dragData is null || !dragData.GetDataPresent(typeof(int)))
         {
             return;
         }
 
-        if (e.Data.GetData(typeof(int)) is not int sourceIndex)
+        if (dragData.GetData(typeof(int)) is not int sourceIndex)
         {
             return;
         }
@@ -2197,12 +2537,38 @@ public class MainForm : Form
         {
             UndoInternal();
             Log("Edição inválida para esta linha. Use formato esperado.");
-            RefreshGrid();
+            RequestGridRefresh();
             return;
         }
 
         _hasUnsavedChanges = true;
-        RefreshGrid();
+        var topIndex = _eventsGrid.FirstDisplayedScrollingRowIndex;
+        RequestGridRefresh(rowIndex, topIndex);
+    }
+
+    private void RequestGridRefresh(int? desiredRowIndex = null, int? desiredTopRow = null)
+    {
+        if (_gridRefreshQueued || IsDisposed)
+        {
+            return;
+        }
+
+        _gridRefreshQueued = true;
+        BeginInvoke(new Action(() =>
+        {
+            try
+            {
+                RefreshGrid();
+                if (desiredRowIndex.HasValue || desiredTopRow.HasValue)
+                {
+                    RestoreGridPosition(desiredRowIndex ?? 0, desiredTopRow ?? _eventsGrid.FirstDisplayedScrollingRowIndex);
+                }
+            }
+            finally
+            {
+                _gridRefreshQueued = false;
+            }
+        }));
     }
 
     private void RestoreGridPosition(int desiredRowIndex, int desiredTopRow)
@@ -2446,6 +2812,7 @@ public class MainForm : Form
 
     private sealed class MoveAggregation
     {
+        public int? FirstSourceEventIndex { get; set; }
         public int StartX { get; set; }
         public int StartY { get; set; }
         public int EndX { get; set; }
