@@ -13,6 +13,7 @@ public class MacroRecorderService
     private long _lastMouseMoveTs = -1;
     private int? _lastMouseMoveX;
     private int? _lastMouseMoveY;
+    private PendingMouseMove? _pendingMouseMove;
     private const int MinMouseMoveIntervalMs = 80;
     private const int MinMouseMoveDistancePx = 6;
 
@@ -29,6 +30,7 @@ public class MacroRecorderService
         _lastMouseMoveTs = -1;
         _lastMouseMoveX = null;
         _lastMouseMoveY = null;
+        _pendingMouseMove = null;
         _stopwatch.Restart();
         IsRecording = true;
 
@@ -64,12 +66,7 @@ public class MacroRecorderService
             var currentTs = _stopwatch.ElapsedMilliseconds;
             if (ShouldRecordMouseMove(e.X, e.Y, currentTs))
             {
-                AddEvent("mouse_move", new Dictionary<string, string>
-                {
-                    ["x"] = e.X.ToString(),
-                    ["y"] = e.Y.ToString()
-                });
-
+                _pendingMouseMove = new PendingMouseMove(e.X, e.Y, currentTs);
                 _lastMouseMoveTs = currentTs;
                 _lastMouseMoveX = e.X;
                 _lastMouseMoveY = e.Y;
@@ -126,6 +123,7 @@ public class MacroRecorderService
             return;
         }
 
+        FlushPendingMouseMove();
         _hook?.Dispose();
         _hook = null;
         _stopwatch.Stop();
@@ -172,6 +170,11 @@ public class MacroRecorderService
 
     private void AddEvent(string kind, Dictionary<string, string> data)
     {
+        if (kind != "mouse_move")
+        {
+            FlushPendingMouseMove();
+        }
+
         _events.Add(new MacroEvent
         {
             Kind = kind,
@@ -179,6 +182,29 @@ public class MacroRecorderService
             Data = data
         });
     }
+
+    private void FlushPendingMouseMove()
+    {
+        if (_pendingMouseMove is null)
+        {
+            return;
+        }
+
+        _events.Add(new MacroEvent
+        {
+            Kind = "mouse_move",
+            TimestampMs = _pendingMouseMove.TimestampMs,
+            Data = new Dictionary<string, string>
+            {
+                ["x"] = _pendingMouseMove.X.ToString(),
+                ["y"] = _pendingMouseMove.Y.ToString()
+            }
+        });
+
+        _pendingMouseMove = null;
+    }
+
+    private sealed record PendingMouseMove(int X, int Y, long TimestampMs);
 }
 
 internal static class NativeInput

@@ -155,11 +155,9 @@ public class MainForm : Form
 
         var playbackPage = new TabPage("Gravação e Replay") { BackColor = Color.FromArgb(239, 242, 247), AutoScroll = true };
         var inspectorPage = new TabPage("Inspeção e Edição") { BackColor = Color.FromArgb(239, 242, 247), AutoScroll = true };
-        var designerPage = new TabPage("Designer de Ações") { BackColor = Color.FromArgb(239, 242, 247), AutoScroll = true };
 
         tabs.TabPages.Add(playbackPage);
         tabs.TabPages.Add(inspectorPage);
-        tabs.TabPages.Add(designerPage);
         Controls.Add(tabs);
 
         var yPlayback = 12;
@@ -170,10 +168,8 @@ public class MainForm : Form
 
         var yInspector = 12;
         BuildFilterSection(inspectorPage, ref yInspector);
+        BuildMacroDesignerSection(inspectorPage, ref yInspector);
         BuildGridSection(inspectorPage, ref yInspector);
-
-        var yDesigner = 12;
-        BuildMacroDesignerSection(designerPage, ref yDesigner);
     }
 
     private Panel CreateCard(Control host, string title, int y, int height)
@@ -308,7 +304,7 @@ public class MainForm : Form
 
     private void BuildActionSection(Control host, ref int y)
     {
-        var card = CreateCard(host, "Record and Playback", y, 244);
+        var card = CreateCard(host, "Record and Playback", y, 208);
 
         card.Controls.Add(new Label { Left = 14, Top = 44, Width = 86, Text = "Parâmetros", ForeColor = Color.FromArgb(75, 85, 99) });
         _params.Left = 105;
@@ -363,23 +359,10 @@ public class MainForm : Form
         StyleInput(_jitterMs);
         card.Controls.Add(_jitterMs);
 
-        card.Controls.Add(new Label { Left = 14, Top = 118, Width = 106, Text = "Nome variável", ForeColor = Color.FromArgb(75, 85, 99) });
-        _variableName.Left = 120;
-        _variableName.Top = 114;
-        StyleInput(_variableName);
-        card.Controls.Add(_variableName);
-
-        card.Controls.Add(new Label { Left = 232, Top = 118, Width = 174, Text = "Valores CSV (loop automático)", ForeColor = Color.FromArgb(75, 85, 99) });
-        _variableValues.Left = 406;
-        _variableValues.Top = 114;
-        _variableValues.Width = 716;
-        StyleInput(_variableValues);
-        card.Controls.Add(_variableValues);
-
-        var btnRecord = CreatePrimaryButton("● Gravar", 14, 170, 110);
-        var btnStopRecord = CreateGhostButton("■ Parar Gravação", 130, 170, 140);
-        var btnPlay = CreatePrimaryButton("▶ Reproduzir", 276, 170, 120);
-        var btnStopPlay = CreateGhostButton("■ Parar", 402, 170, 96);
+        var btnRecord = CreatePrimaryButton("● Gravar", 14, 132, 110);
+        var btnStopRecord = CreateGhostButton("■ Parar Gravação", 130, 132, 140);
+        var btnPlay = CreatePrimaryButton("▶ Reproduzir", 276, 132, 120);
+        var btnStopPlay = CreateGhostButton("■ Parar", 402, 132, 96);
 
         btnRecord.Click += async (_, _) => await StartRecordAsync();
         btnStopRecord.Click += async (_, _) => await StopRecordAsync();
@@ -392,13 +375,13 @@ public class MainForm : Form
         card.Controls.Add(btnStopPlay);
 
         _playMouseMoves.Left = 560;
-        _playMouseMoves.Top = 176;
+        _playMouseMoves.Top = 138;
         _playMouseClicks.Left = 676;
-        _playMouseClicks.Top = 176;
+        _playMouseClicks.Top = 138;
         _playKeyPresses.Left = 790;
-        _playKeyPresses.Top = 176;
+        _playKeyPresses.Top = 138;
         _playWaitTimes.Left = 903;
-        _playWaitTimes.Top = 176;
+        _playWaitTimes.Top = 138;
 
         StyleToggle(_playMouseMoves);
         StyleToggle(_playMouseClicks);
@@ -435,7 +418,7 @@ public class MainForm : Form
 
     private void BuildMacroDesignerSection(Control host, ref int y)
     {
-        var card = CreateCard(host, "Construtor visual de ações", y, 212);
+        var card = CreateCard(host, "Ações e variáveis", y, 252);
 
         card.Controls.Add(new Label { Left = 14, Top = 44, Width = 90, Text = "Tipo ação", ForeColor = Color.FromArgb(75, 85, 99) });
         _designerActionType.Left = 102;
@@ -470,19 +453,35 @@ public class MainForm : Form
         StyleInput(_designerComment);
         card.Controls.Add(_designerComment);
 
-        var btnInsert = CreatePrimaryButton("Inserir ação", 14, 124, 126);
-        var btnDuplicate = CreateGhostButton("Duplicar selecionada", 146, 124, 154);
-        var btnMoveUp = CreateGhostButton("Mover acima", 306, 124, 110);
-        var btnMoveDown = CreateGhostButton("Mover abaixo", 422, 124, 112);
-        var btnDelete = CreateGhostButton("Excluir selecionada", 540, 124, 140);
+        card.Controls.Add(new Label { Left = 14, Top = 120, Width = 106, Text = "Nome variável", ForeColor = Color.FromArgb(75, 85, 99) });
+        _variableName.Left = 120;
+        _variableName.Top = 116;
+        StyleInput(_variableName);
+        card.Controls.Add(_variableName);
+
+        card.Controls.Add(new Label { Left = 232, Top = 120, Width = 174, Text = "Valores CSV (loop automático)", ForeColor = Color.FromArgb(75, 85, 99) });
+        _variableValues.Left = 406;
+        _variableValues.Top = 116;
+        _variableValues.Width = 716;
+        StyleInput(_variableValues);
+        card.Controls.Add(_variableValues);
+
+        var btnInsert = CreatePrimaryButton("Inserir ação", 14, 158, 126);
+        var btnUpdate = CreateGhostButton("Atualizar selecionada", 146, 158, 166);
+        var btnDuplicate = CreateGhostButton("Duplicar selecionada", 318, 158, 154);
+        var btnMoveUp = CreateGhostButton("Mover acima", 478, 158, 110);
+        var btnMoveDown = CreateGhostButton("Mover abaixo", 594, 158, 112);
+        var btnDelete = CreateGhostButton("Excluir selecionada", 712, 158, 140);
 
         btnInsert.Click += (_, _) => InsertDesignedAction();
+        btnUpdate.Click += (_, _) => UpdateSelectedActionFromDesigner();
         btnDuplicate.Click += (_, _) => DuplicateSelectedAction();
         btnMoveUp.Click += (_, _) => MoveSelectedAction(-1);
         btnMoveDown.Click += (_, _) => MoveSelectedAction(1);
         btnDelete.Click += (_, _) => DeleteSelectedAction();
 
         card.Controls.Add(btnInsert);
+        card.Controls.Add(btnUpdate);
         card.Controls.Add(btnDuplicate);
         card.Controls.Add(btnMoveUp);
         card.Controls.Add(btnMoveDown);
@@ -491,11 +490,11 @@ public class MainForm : Form
         card.Controls.Add(new Label
         {
             Left = 14,
-            Top = 168,
+            Top = 204,
             Width = 1110,
             Height = 34,
             ForeColor = Color.FromArgb(75, 85, 99),
-            Text = "Dica: para variável, use no texto: {{periodo}}. Para loop por lista, preencha Nome variável e Valores CSV na aba Gravação e Replay."
+            Text = "Dica: selecione uma linha real na timeline para preencher e editar. Para variável no texto, use {{periodo}}."
         });
 
         y += card.Height + 10;
@@ -601,6 +600,7 @@ public class MainForm : Form
         _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Kind", HeaderText = "Kind", DataPropertyName = nameof(EventRow.Kind), Width = 180, ReadOnly = true });
 
         _eventsGrid.CellEndEdit += (_, e) => ApplyGridEdit(e.RowIndex, e.ColumnIndex);
+        _eventsGrid.SelectionChanged += (_, _) => SyncDesignerWithSelection();
     }
 
     private void Log(string message)
@@ -1205,6 +1205,19 @@ public class MainForm : Form
             FlushMoveAggregation(rows, options, moveAggregation);
             moveAggregation = null;
 
+            if (TryBuildClickRow(macro.Events, i, prevTimestamp, ref lastX, ref lastY, out var clickRow, out var skipTo, out var clickTimestamp))
+            {
+                AddWaitRowIfRelevant(rows, options, clickTimestamp, clickRow.WaitMs);
+                if (MatchInspectFilter(options.Filter, clickRow.Kind))
+                {
+                    rows.Add(clickRow);
+                }
+
+                i = skipTo;
+                prevTimestamp = clickTimestamp;
+                continue;
+            }
+
             AddWaitRowIfRelevant(rows, options, ev.TimestampMs, waitMs);
 
             var action = PrettyAction(ev);
@@ -1239,6 +1252,62 @@ public class MainForm : Form
         return ev.Kind == "mouse_move"
                && int.TryParse(ev.Data.GetValueOrDefault("x"), out x)
                && int.TryParse(ev.Data.GetValueOrDefault("y"), out y);
+    }
+
+    private static bool TryBuildClickRow(
+        IReadOnlyList<MacroEvent> events,
+        int index,
+        long prevTimestamp,
+        ref int? lastX,
+        ref int? lastY,
+        out EventRow row,
+        out int skipTo,
+        out long timestampMs)
+    {
+        row = new EventRow();
+        skipTo = index;
+        timestampMs = prevTimestamp;
+
+        var down = events[index];
+        if (down.Kind != "mouse_down" || index + 1 >= events.Count)
+        {
+            return false;
+        }
+
+        var up = events[index + 1];
+        if (up.Kind != "mouse_up")
+        {
+            return false;
+        }
+
+        var downButton = down.Data.GetValueOrDefault("button", "Left");
+        var upButton = up.Data.GetValueOrDefault("button", "Left");
+        if (!string.Equals(downButton, upButton, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!int.TryParse(up.Data.GetValueOrDefault("x"), out var x) || !int.TryParse(up.Data.GetValueOrDefault("y"), out var y))
+        {
+            return false;
+        }
+
+        timestampMs = up.TimestampMs;
+        var waitMs = Math.Max(timestampMs - prevTimestamp, 0);
+        lastX = x;
+        lastY = y;
+
+        row = new EventRow
+        {
+            Action = $"Mouse {upButton.ToLowerInvariant()} click",
+            Value = $"{x}, {y}",
+            TimestampMs = timestampMs,
+            WaitMs = waitMs,
+            Kind = "mouse_click",
+            SourceEventIndex = index
+        };
+        skipTo = index + 1;
+        return true;
     }
 
     private static void AddWaitRowIfRelevant(List<EventRow> rows, InspectRenderOptions options, long timestampMs, long waitMs)
@@ -1323,7 +1392,7 @@ public class MainForm : Form
     {
         return filter switch
         {
-            "Cliques" => kind is "mouse_down" or "mouse_up",
+            "Cliques" => kind is "mouse_down" or "mouse_up" or "mouse_click",
             "Movimento mouse" => kind is "mouse_move" or "mouse_move_group",
             "Teclado" => kind is "key_down" or "key_up" or "text_input",
             "Espera" => kind == "wait",
@@ -1339,6 +1408,7 @@ public class MainForm : Form
             "mouse_down" => $"Mouse {ev.Data.GetValueOrDefault("button", "left").ToLowerInvariant()} down",
             "mouse_up" => $"Mouse {ev.Data.GetValueOrDefault("button", "left").ToLowerInvariant()} up",
             "mouse_wheel" => "Mouse wheel",
+            "mouse_click" => $"Mouse {ev.Data.GetValueOrDefault("button", "left").ToLowerInvariant()} click",
             "key_down" => "Key down",
             "key_up" => "Key up",
             "text_input" => "Text input",
@@ -1396,9 +1466,47 @@ public class MainForm : Form
             return;
         }
 
+        if (!TryBuildEventFromDesigner(_currentMacro.Events.LastOrDefault()?.TimestampMs ?? 0, out var newEvent))
+        {
+            return;
+        }
+
+        _currentMacro.Events.Add(newEvent);
+        _hasUnsavedChanges = true;
+        RefreshGrid();
+        Log($"Ação '{newEvent.Kind}' inserida no final da macro.");
+    }
+
+    private void UpdateSelectedActionFromDesigner()
+    {
+        if (_currentMacro is null || _eventsGrid.SelectedRows.Count == 0)
+        {
+            return;
+        }
+
+        if (_eventsGrid.SelectedRows[0].DataBoundItem is not EventRow row || row.SourceEventIndex is not int idx || idx < 0 || idx >= _currentMacro.Events.Count)
+        {
+            MessageBox.Show("Selecione uma ação real na timeline para atualizar.");
+            return;
+        }
+
+        var currentTs = _currentMacro.Events[idx].TimestampMs;
+        if (!TryBuildEventFromDesigner(currentTs, out var updated))
+        {
+            return;
+        }
+
+        _currentMacro.Events[idx] = updated;
+        _hasUnsavedChanges = true;
+        RefreshGrid();
+        Log($"Ação na linha selecionada atualizada ({updated.Kind}).");
+    }
+
+    private bool TryBuildEventFromDesigner(long baseTimestamp, out MacroEvent result)
+    {
         var kind = _designerActionType.SelectedItem?.ToString() ?? "Text input";
         var rawValue = _designerValue.Text;
-        var newEvent = new MacroEvent
+        result = new MacroEvent
         {
             Kind = kind switch
             {
@@ -1409,49 +1517,55 @@ public class MainForm : Form
                 "Mouse left click" => "mouse_down",
                 _ => "text_input"
             },
-            TimestampMs = _currentMacro.Events.LastOrDefault()?.TimestampMs ?? 0,
+            TimestampMs = baseTimestamp,
             Data = new Dictionary<string, string>()
         };
 
-        switch (newEvent.Kind)
+        switch (result.Kind)
         {
             case "text_input":
-                newEvent.Data["text"] = rawValue;
+                result.Data["text"] = rawValue;
                 break;
             case "wait":
                 if (!long.TryParse(rawValue, out var waitMs) || waitMs < 0)
                 {
                     MessageBox.Show("Para Wait, informe milissegundos válidos.");
-                    return;
+                    return false;
                 }
-                newEvent.TimestampMs += waitMs;
+                result.TimestampMs += waitMs;
                 break;
             case "key_down":
             case "key_up":
-                newEvent.Data["key"] = rawValue;
+                result.Data["key"] = rawValue;
                 break;
             case "mouse_down":
-                var pos = Cursor.Position;
-                newEvent.Data["x"] = pos.X.ToString();
-                newEvent.Data["y"] = pos.Y.ToString();
-                newEvent.Data["button"] = "Left";
+                if (!string.IsNullOrWhiteSpace(rawValue) && TryParsePoint(rawValue, out var x, out var y))
+                {
+                    result.Data["x"] = x.ToString();
+                    result.Data["y"] = y.ToString();
+                }
+                else
+                {
+                    var pos = Cursor.Position;
+                    result.Data["x"] = pos.X.ToString();
+                    result.Data["y"] = pos.Y.ToString();
+                }
+
+                result.Data["button"] = "Left";
                 break;
         }
 
         if (!string.IsNullOrWhiteSpace(_designerLabel.Text))
         {
-            newEvent.Data["label"] = _designerLabel.Text.Trim();
+            result.Data["label"] = _designerLabel.Text.Trim();
         }
 
         if (!string.IsNullOrWhiteSpace(_designerComment.Text))
         {
-            newEvent.Data["comment"] = _designerComment.Text.Trim();
+            result.Data["comment"] = _designerComment.Text.Trim();
         }
 
-        _currentMacro.Events.Add(newEvent);
-        _hasUnsavedChanges = true;
-        RefreshGrid();
-        Log($"Ação '{newEvent.Kind}' inserida no final da macro.");
+        return true;
     }
 
     private void DuplicateSelectedAction()
@@ -1535,6 +1649,42 @@ public class MainForm : Form
 
         _hasUnsavedChanges = true;
         RefreshGrid();
+    }
+
+    private void SyncDesignerWithSelection()
+    {
+        if (_currentMacro is null || _eventsGrid.SelectedRows.Count == 0)
+        {
+            return;
+        }
+
+        if (_eventsGrid.SelectedRows[0].DataBoundItem is not EventRow row || row.SourceEventIndex is not int idx || idx < 0 || idx >= _currentMacro.Events.Count)
+        {
+            return;
+        }
+
+        var ev = _currentMacro.Events[idx];
+        _designerActionType.SelectedItem = ev.Kind switch
+        {
+            "text_input" => "Text input",
+            "wait" => "Wait",
+            "key_down" => "Key down",
+            "key_up" => "Key up",
+            "mouse_down" => "Mouse left click",
+            _ => _designerActionType.SelectedItem
+        };
+
+        _designerValue.Text = ev.Kind switch
+        {
+            "text_input" => ev.Data.GetValueOrDefault("text", string.Empty),
+            "wait" => (idx > 0 ? Math.Max(ev.TimestampMs - _currentMacro.Events[idx - 1].TimestampMs, 0) : ev.TimestampMs).ToString(),
+            "key_down" or "key_up" => ev.Data.GetValueOrDefault("key", string.Empty),
+            "mouse_down" => $"{ev.Data.GetValueOrDefault("x", "0")}, {ev.Data.GetValueOrDefault("y", "0")}",
+            _ => string.Empty
+        };
+
+        _designerLabel.Text = ev.Data.GetValueOrDefault("label", string.Empty);
+        _designerComment.Text = ev.Data.GetValueOrDefault("comment", string.Empty);
     }
 
     private bool TryApplyValueEdit(int sourceIndex, string kind, string input)
