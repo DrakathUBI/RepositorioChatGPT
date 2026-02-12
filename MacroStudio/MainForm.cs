@@ -99,7 +99,7 @@ public class MainForm : Form
         {
             Left = 16,
             Top = 14,
-            Width = 1144,
+            Width = ClientSize.Width - 32,
             Height = 82,
             BackColor = Color.FromArgb(15, 23, 42)
         };
@@ -148,8 +148,8 @@ public class MainForm : Form
         {
             Left = 16,
             Top = hero.Bottom + 10,
-            Width = 1144,
-            Height = 760,
+            Width = ClientSize.Width - 32,
+            Height = ClientSize.Height - (hero.Bottom + 26),
             Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
         };
 
@@ -182,10 +182,11 @@ public class MainForm : Form
         {
             Left = 16,
             Top = y,
-            Width = 1144,
+            Width = Math.Max(host.ClientSize.Width - 34, 900),
             Height = height,
             BackColor = Color.White,
-            BorderStyle = BorderStyle.FixedSingle
+            BorderStyle = BorderStyle.FixedSingle,
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
         };
 
         var accent = new Panel
@@ -307,31 +308,34 @@ public class MainForm : Form
 
     private void BuildActionSection(Control host, ref int y)
     {
-        var card = CreateCard(host, "Record and Playback", y, 202);
+        var card = CreateCard(host, "Record and Playback", y, 244);
 
         card.Controls.Add(new Label { Left = 14, Top = 44, Width = 86, Text = "Parâmetros", ForeColor = Color.FromArgb(75, 85, 99) });
         _params.Left = 105;
         _params.Top = 40;
+        _params.Width = 470;
         StyleInput(_params);
         card.Controls.Add(_params);
 
-        card.Controls.Add(new Label { Left = 634, Top = 44, Width = 50, Text = "Speed", ForeColor = Color.FromArgb(75, 85, 99) });
-        _speed.Left = 680;
+        card.Controls.Add(new Label { Left = 588, Top = 44, Width = 50, Text = "Speed", ForeColor = Color.FromArgb(75, 85, 99) });
+        _speed.Left = 634;
         _speed.Top = 40;
         StyleInput(_speed);
         card.Controls.Add(_speed);
 
-        card.Controls.Add(new Label { Left = 770, Top = 44, Width = 56, Text = "Stop key", ForeColor = Color.FromArgb(75, 85, 99) });
-        _stopKey.Left = 830;
+        card.Controls.Add(new Label { Left = 724, Top = 44, Width = 56, Text = "Stop key", ForeColor = Color.FromArgb(75, 85, 99) });
+        _stopKey.Left = 784;
         _stopKey.Top = 40;
         StyleInput(_stopKey);
         card.Controls.Add(_stopKey);
 
-        card.Controls.Add(new Label { Left = 922, Top = 44, Width = 50, Text = "Modelo", ForeColor = Color.FromArgb(75, 85, 99) });
-        _model.Left = 980;
+        card.Controls.Add(new Label { Left = 876, Top = 44, Width = 50, Text = "Modelo", ForeColor = Color.FromArgb(75, 85, 99) });
+        _model.Left = 934;
         _model.Top = 40;
+        _model.Width = 188;
         StyleInput(_model);
         card.Controls.Add(_model);
+
         card.Controls.Add(new Label { Left = 14, Top = 82, Width = 74, Text = "Preset", ForeColor = Color.FromArgb(75, 85, 99) });
         _speedPreset.Left = 88;
         _speedPreset.Top = 78;
@@ -368,13 +372,14 @@ public class MainForm : Form
         card.Controls.Add(new Label { Left = 232, Top = 118, Width = 174, Text = "Valores CSV (loop automático)", ForeColor = Color.FromArgb(75, 85, 99) });
         _variableValues.Left = 406;
         _variableValues.Top = 114;
+        _variableValues.Width = 716;
         StyleInput(_variableValues);
         card.Controls.Add(_variableValues);
 
-        var btnRecord = CreatePrimaryButton("● Gravar", 700, 114, 110);
-        var btnStopRecord = CreateGhostButton("■ Parar Gravação", 816, 114, 136);
-        var btnPlay = CreatePrimaryButton("▶ Reproduzir", 958, 114, 90);
-        var btnStopPlay = CreateGhostButton("■ Parar", 1052, 114, 80);
+        var btnRecord = CreatePrimaryButton("● Gravar", 14, 170, 110);
+        var btnStopRecord = CreateGhostButton("■ Parar Gravação", 130, 170, 140);
+        var btnPlay = CreatePrimaryButton("▶ Reproduzir", 276, 170, 120);
+        var btnStopPlay = CreateGhostButton("■ Parar", 402, 170, 96);
 
         btnRecord.Click += async (_, _) => await StartRecordAsync();
         btnStopRecord.Click += async (_, _) => await StopRecordAsync();
@@ -386,14 +391,14 @@ public class MainForm : Form
         card.Controls.Add(btnPlay);
         card.Controls.Add(btnStopPlay);
 
-        _playMouseMoves.Left = 700;
-        _playMouseMoves.Top = 120;
-        _playMouseClicks.Left = 796;
-        _playMouseClicks.Top = 120;
-        _playKeyPresses.Left = 896;
-        _playKeyPresses.Top = 120;
-        _playWaitTimes.Left = 1002;
-        _playWaitTimes.Top = 120;
+        _playMouseMoves.Left = 560;
+        _playMouseMoves.Top = 176;
+        _playMouseClicks.Left = 676;
+        _playMouseClicks.Top = 176;
+        _playKeyPresses.Left = 790;
+        _playKeyPresses.Top = 176;
+        _playWaitTimes.Left = 903;
+        _playWaitTimes.Top = 176;
 
         StyleToggle(_playMouseMoves);
         StyleToggle(_playMouseClicks);
