@@ -136,7 +136,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_local_no_admin.ps1
 
 ### Erro `NU1101: Não é possível encontrar o pacote ...`
 
-Se aparecer erro de pacote no `restore`, atualize para a versão mais recente do repositório (o pacote correto agora é `MouseKeyHook`).
+Se aparecer erro de pacote no `restore`, atualize para a versão mais recente do repositório (o pacote correto agora é `Gma.System.MouseKeyHook`).
 
 Depois rode novamente:
 
@@ -147,7 +147,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_local_no_admin.ps1
 ### Aviso `NU1603` do MouseKeyHook
 
 Se aparecer `NU1603` dizendo que `5.6.1` não foi encontrada e que `5.7.1` foi usada, atualize para a versão mais recente do repositório.
-Nesta versão já fixamos para `MouseKeyHook` `5.7.1`, então o aviso deve desaparecer.
+Nesta versão já fixamos para `Gma.System.MouseKeyHook` `5.7.1`, então o aviso deve desaparecer.
 
 ### Erro `MSB1009: Arquivo de projeto não existe`
 
