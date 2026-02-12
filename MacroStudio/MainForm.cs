@@ -1089,6 +1089,12 @@ public class MainForm : Form
             return true;
         }
 
+        if (keyData == Keys.Delete && _eventsGrid.ContainsFocus && !_eventsGrid.IsCurrentCellInEditMode)
+        {
+            DeleteSelectedAction();
+            return true;
+        }
+
         if (keyData == (Keys.Alt | Keys.Up))
         {
             MoveSelectedAction(-1);
