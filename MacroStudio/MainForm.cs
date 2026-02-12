@@ -59,15 +59,18 @@ public class MainForm : Form
     private CancellationTokenSource? _playCts;
     private MacroFile? _currentMacro;
     private bool _hasUnsavedChanges;
+    private Label? _statusLabel;
 
     public MainForm()
     {
         Text = "Macro Studio Professional";
-        Width = 1180;
-        Height = 860;
+        Width = 1220;
+        Height = 900;
+        MinimumSize = new Size(1220, 900);
         StartPosition = FormStartPosition.CenterScreen;
         KeyPreview = true;
-        BackColor = Color.FromArgb(245, 247, 251);
+        DoubleBuffered = true;
+        BackColor = Color.FromArgb(239, 242, 247);
         Font = new Font("Segoe UI", 10F, FontStyle.Regular, GraphicsUnit.Point);
 
         BuildUi();
@@ -75,31 +78,58 @@ public class MainForm : Form
 
     private void BuildUi()
     {
-        var y = 14;
+        Controls.Clear();
+
+        var hero = new Panel
+        {
+            Left = 16,
+            Top = 14,
+            Width = 1144,
+            Height = 82,
+            BackColor = Color.FromArgb(15, 23, 42)
+        };
 
         var title = new Label
         {
             Left = 18,
-            Top = y,
-            Width = 600,
+            Top = 14,
+            Width = 520,
             Height = 30,
-            Text = "Macro Studio",
-            Font = new Font("Segoe UI Semibold", 17F, FontStyle.Bold)
+            Text = "Macro Studio • Pro Console",
+            Font = new Font("Segoe UI Semibold", 17F, FontStyle.Bold),
+            ForeColor = Color.White
         };
-        Controls.Add(title);
 
-        y += 30;
-        Controls.Add(new Label
+        var subtitle = new Label
         {
             Left = 20,
-            Top = y,
-            Width = 760,
+            Top = 46,
+            Width = 820,
             Height = 20,
-            Text = "Editor profissional com inspeção inteligente, edição em memória e playback filtrado.",
-            ForeColor = Color.FromArgb(75, 85, 99)
-        });
+            Text = "Visual avançado com timeline inteligente, filtros e execução controlada por teclado.",
+            ForeColor = Color.FromArgb(191, 219, 254)
+        };
 
-        y += 28;
+        _statusLabel = new Label
+        {
+            Left = 860,
+            Top = 28,
+            Width = 260,
+            Height = 30,
+            Text = "Status: pronto",
+            TextAlign = ContentAlignment.MiddleCenter,
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold),
+            BorderStyle = BorderStyle.FixedSingle,
+            BackColor = Color.FromArgb(30, 64, 175)
+        };
+
+        hero.Controls.Add(title);
+        hero.Controls.Add(subtitle);
+        hero.Controls.Add(_statusLabel);
+        Controls.Add(hero);
+
+        var y = hero.Bottom + 10;
         BuildMacroFileSection(ref y);
         BuildActionSection(ref y);
         BuildFilterSection(ref y);
@@ -119,17 +149,27 @@ public class MainForm : Form
             BorderStyle = BorderStyle.FixedSingle
         };
 
+        var accent = new Panel
+        {
+            Left = 0,
+            Top = 0,
+            Width = 6,
+            Height = card.Height,
+            BackColor = Color.FromArgb(37, 99, 235)
+        };
+
         var header = new Label
         {
-            Left = 14,
+            Left = 16,
             Top = 10,
-            Width = 700,
+            Width = 720,
             Height = 20,
             Text = title,
             Font = new Font("Segoe UI Semibold", 10.5F, FontStyle.Bold),
             ForeColor = Color.FromArgb(17, 24, 39)
         };
 
+        card.Controls.Add(accent);
         card.Controls.Add(header);
         Controls.Add(card);
         return card;
@@ -140,6 +180,8 @@ public class MainForm : Form
         if (c is TextBox tb)
         {
             tb.BorderStyle = BorderStyle.FixedSingle;
+            tb.BackColor = Color.FromArgb(249, 250, 251);
+            tb.ForeColor = Color.FromArgb(17, 24, 39);
         }
 
         c.Font = new Font("Segoe UI", 10F, FontStyle.Regular, GraphicsUnit.Point);
@@ -162,6 +204,8 @@ public class MainForm : Form
         };
 
         btn.FlatAppearance.BorderSize = 0;
+        btn.MouseEnter += (_, _) => btn.BackColor = Color.FromArgb(29, 78, 216);
+        btn.MouseLeave += (_, _) => btn.BackColor = Color.FromArgb(37, 99, 235);
         return btn;
     }
 
@@ -183,6 +227,8 @@ public class MainForm : Form
 
         btn.FlatAppearance.BorderColor = Color.FromArgb(209, 213, 219);
         btn.FlatAppearance.BorderSize = 1;
+        btn.MouseEnter += (_, _) => btn.BackColor = Color.FromArgb(229, 231, 235);
+        btn.MouseLeave += (_, _) => btn.BackColor = Color.FromArgb(243, 244, 246);
         return btn;
     }
 
@@ -190,6 +236,8 @@ public class MainForm : Form
     {
         check.ForeColor = Color.FromArgb(55, 65, 81);
         check.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular);
+        check.BackColor = Color.Transparent;
+        check.FlatStyle = FlatStyle.Flat;
     }
 
     private void BuildMacroFileSection(ref int y)
@@ -362,13 +410,17 @@ public class MainForm : Form
     private void SetupGridColumns()
     {
         _eventsGrid.EnableHeadersVisualStyles = false;
-        _eventsGrid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(248, 250, 252);
-        _eventsGrid.ColumnHeadersDefaultCellStyle.ForeColor = Color.FromArgb(17, 24, 39);
+        _eventsGrid.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Single;
+        _eventsGrid.ColumnHeadersHeight = 34;
+        _eventsGrid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(30, 41, 59);
+        _eventsGrid.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
         _eventsGrid.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
+        _eventsGrid.DefaultCellStyle.BackColor = Color.White;
         _eventsGrid.DefaultCellStyle.ForeColor = Color.FromArgb(31, 41, 55);
         _eventsGrid.DefaultCellStyle.SelectionBackColor = Color.FromArgb(219, 234, 254);
         _eventsGrid.DefaultCellStyle.SelectionForeColor = Color.FromArgb(30, 58, 138);
-        _eventsGrid.RowTemplate.Height = 30;
+        _eventsGrid.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 250, 252);
+        _eventsGrid.RowTemplate.Height = 32;
 
         _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "#", DataPropertyName = nameof(EventRow.Index), Width = 44 });
         _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Action", DataPropertyName = nameof(EventRow.Action), Width = 240 });
@@ -382,6 +434,10 @@ public class MainForm : Form
     private void Log(string message)
     {
         _log.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}");
+        if (_statusLabel is not null)
+        {
+            _statusLabel.Text = $"Status: {message}";
+        }
     }
 
     private void BrowseMacro()
