@@ -421,7 +421,7 @@ public class MacroPlayerService
         return kind switch
         {
             "mouse_move" => options.PlayMouseMoves,
-            "mouse_down" or "mouse_up" or "mouse_wheel" => options.PlayMouseClicks,
+            "mouse_down" or "mouse_up" or "mouse_click" or "mouse_wheel" => options.PlayMouseClicks,
             "key_down" or "key_up" or "text_input" => options.PlayKeyPresses,
             _ => true
         };
@@ -458,6 +458,23 @@ public class MacroPlayerService
         if (data.TryGetValue("x", out var xRaw) && data.TryGetValue("y", out var yRaw) && int.TryParse(xRaw, out var x) && int.TryParse(yRaw, out var y))
         {
             Cursor.Position = new System.Drawing.Point(x, y);
+        }
+
+        if (kind == "mouse_click")
+        {
+            var button = data.GetValueOrDefault("button", "Left");
+            if (button.Equals("Left", StringComparison.OrdinalIgnoreCase))
+            {
+                NativeInput.mouse_event(NativeInput.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, UIntPtr.Zero);
+                NativeInput.mouse_event(NativeInput.MOUSEEVENTF_LEFTUP, 0, 0, 0, UIntPtr.Zero);
+            }
+            else if (button.Equals("Right", StringComparison.OrdinalIgnoreCase))
+            {
+                NativeInput.mouse_event(NativeInput.MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, UIntPtr.Zero);
+                NativeInput.mouse_event(NativeInput.MOUSEEVENTF_RIGHTUP, 0, 0, 0, UIntPtr.Zero);
+            }
+
+            return;
         }
 
         if (kind == "mouse_down" || kind == "mouse_up")
@@ -514,7 +531,9 @@ public class MacroPlayerService
         var output = value;
         foreach (var pair in parameters)
         {
-            output = output.Replace("{{" + pair.Key + "}}", pair.Value, StringComparison.Ordinal);
+            output = output
+                .Replace("{{" + pair.Key + "}}", pair.Value, StringComparison.OrdinalIgnoreCase)
+                .Replace("{" + pair.Key + "}", pair.Value, StringComparison.OrdinalIgnoreCase);
         }
 
         return output;
