@@ -62,7 +62,8 @@ public class MainForm : Form
         RowHeadersVisible = false,
         BackgroundColor = Color.White,
         BorderStyle = BorderStyle.None,
-        GridColor = Color.FromArgb(229, 231, 235)
+        GridColor = Color.FromArgb(229, 231, 235),
+        AllowDrop = true
     };
 
     private readonly MacroRecorderService _recorder = new();
@@ -78,6 +79,9 @@ public class MainForm : Form
     private PlaybackFilterOptions _lastReplayOptions = new();
     private readonly Stack<MacroFile> _undoStack = new();
     private readonly Stack<MacroFile> _redoStack = new();
+    private int _dragRowStartIndex = -1;
+    private Point _dragStartPoint = Point.Empty;
+
 
     public MainForm()
     {
@@ -623,6 +627,10 @@ public class MainForm : Form
 
         _eventsGrid.CellEndEdit += (_, e) => ApplyGridEdit(e.RowIndex, e.ColumnIndex);
         _eventsGrid.SelectionChanged += (_, _) => SyncDesignerWithSelection();
+        _eventsGrid.MouseDown += EventsGrid_MouseDown;
+        _eventsGrid.MouseMove += EventsGrid_MouseMove;
+        _eventsGrid.DragOver += EventsGrid_DragOver;
+        _eventsGrid.DragDrop += EventsGrid_DragDrop;
     }
 
     private void Log(string message)
@@ -2024,22 +2032,132 @@ public class MainForm : Form
             return;
         }
 
-        if (_eventsGrid.SelectedRows[0].DataBoundItem is not EventRow row || row.SourceEventIndex is not int idx)
+        if (_eventsGrid.SelectedRows[0].DataBoundItem is not EventRow row || row.SourceEventIndex is not int sourceIndex)
         {
             return;
         }
 
-        var target = idx + direction;
-        if (idx < 0 || idx >= _currentMacro.Events.Count || target < 0 || target >= _currentMacro.Events.Count)
+        var targetSourceIndex = sourceIndex + direction;
+        var selectedDisplayRow = _eventsGrid.SelectedRows[0].Index;
+        var topIndex = _eventsGrid.FirstDisplayedScrollingRowIndex;
+
+        if (!MoveEventToIndex(sourceIndex, targetSourceIndex))
         {
             return;
+        }
+
+        RefreshGrid();
+        RestoreGridPosition(selectedDisplayRow + direction, topIndex);
+        Log(direction < 0 ? "Ação movida para cima." : "Ação movida para baixo.");
+    }
+
+    private bool MoveEventToIndex(int sourceIndex, int targetIndex)
+    {
+        if (_currentMacro is null)
+        {
+            return false;
+        }
+
+        if (sourceIndex < 0 || sourceIndex >= _currentMacro.Events.Count || targetIndex < 0 || targetIndex >= _currentMacro.Events.Count || sourceIndex == targetIndex)
+        {
+            return false;
         }
 
         PushUndoState();
-        (_currentMacro.Events[idx], _currentMacro.Events[target]) = (_currentMacro.Events[target], _currentMacro.Events[idx]);
+        var moving = _currentMacro.Events[sourceIndex];
+        _currentMacro.Events.RemoveAt(sourceIndex);
+
+        _currentMacro.Events.Insert(targetIndex, moving);
         _hasUnsavedChanges = true;
+        return true;
+    }
+
+    private void EventsGrid_MouseDown(object? sender, MouseEventArgs e)
+    {
+        if (e.Button != MouseButtons.Left)
+        {
+            _dragRowStartIndex = -1;
+            _dragStartPoint = Point.Empty;
+            return;
+        }
+
+        var hit = _eventsGrid.HitTest(e.X, e.Y);
+        _dragRowStartIndex = hit.RowIndex;
+        _dragStartPoint = e.Location;
+    }
+
+    private void EventsGrid_MouseMove(object? sender, MouseEventArgs e)
+    {
+        if (e.Button != MouseButtons.Left || _dragRowStartIndex < 0 || _dragRowStartIndex >= _eventsGrid.Rows.Count)
+        {
+            return;
+        }
+
+        var dragSize = SystemInformation.DragSize;
+        if (Math.Abs(e.X - _dragStartPoint.X) < dragSize.Width / 2 && Math.Abs(e.Y - _dragStartPoint.Y) < dragSize.Height / 2)
+        {
+            return;
+        }
+
+        if (_eventsGrid.Rows[_dragRowStartIndex].DataBoundItem is not EventRow row || row.SourceEventIndex is not int sourceIndex)
+        {
+            _dragRowStartIndex = -1;
+            _dragStartPoint = Point.Empty;
+            return;
+        }
+
+        _eventsGrid.DoDragDrop(sourceIndex, DragDropEffects.Move);
+        _dragRowStartIndex = -1;
+        _dragStartPoint = Point.Empty;
+    }
+
+    private void EventsGrid_DragOver(object? sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(typeof(int)))
+        {
+            e.Effect = DragDropEffects.None;
+            return;
+        }
+
+        e.Effect = DragDropEffects.Move;
+    }
+
+    private void EventsGrid_DragDrop(object? sender, DragEventArgs e)
+    {
+        if (_currentMacro is null || !e.Data.GetDataPresent(typeof(int)))
+        {
+            return;
+        }
+
+        if (e.Data.GetData(typeof(int)) is not int sourceIndex)
+        {
+            return;
+        }
+
+        var clientPoint = _eventsGrid.PointToClient(new Point(e.X, e.Y));
+        var hit = _eventsGrid.HitTest(clientPoint.X, clientPoint.Y);
+        if (hit.RowIndex < 0 || hit.RowIndex >= _eventsGrid.Rows.Count)
+        {
+            return;
+        }
+
+        if (_eventsGrid.Rows[hit.RowIndex].DataBoundItem is not EventRow targetRow || targetRow.SourceEventIndex is not int targetSourceIndex)
+        {
+            return;
+        }
+
+        var topIndex = _eventsGrid.FirstDisplayedScrollingRowIndex;
+        if (!MoveEventToIndex(sourceIndex, targetSourceIndex))
+        {
+            return;
+        }
+
         RefreshGrid();
-        Log(direction < 0 ? "Ação movida para cima." : "Ação movida para baixo.");
+
+        var rows = _eventsGrid.DataSource as List<EventRow>;
+        var displayRow = rows?.FindIndex(r => r.SourceEventIndex == targetSourceIndex) ?? hit.RowIndex;
+        RestoreGridPosition(displayRow, topIndex);
+        Log("Ação movida com arrastar e soltar.");
     }
 
     private void ApplyGridEdit(int rowIndex, int columnIndex)
