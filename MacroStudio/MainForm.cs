@@ -384,8 +384,17 @@ public class MainForm : Form
         y += card.Height + 10;
     }
 
+    private void EnsureHotkeyDefaults()
+    {
+        if (string.IsNullOrWhiteSpace(_hkStartRecord.Text)) _hkStartRecord.Text = "Ctrl+R";
+        if (string.IsNullOrWhiteSpace(_hkStopRecord.Text)) _hkStopRecord.Text = "Ctrl+Shift+R";
+        if (string.IsNullOrWhiteSpace(_hkPlay.Text)) _hkPlay.Text = "Ctrl+P";
+        if (string.IsNullOrWhiteSpace(_hkStopPlay.Text)) _hkStopPlay.Text = "Ctrl+Shift+P";
+    }
+
     private void BuildHotkeysConfigSection(Control host, ref int y)
     {
+        EnsureHotkeyDefaults();
         var card = CreateCard(host, "Configuração de atalhos", y, 210);
 
         card.Controls.Add(new Label { Left = 14, Top = 44, Width = 300, Text = "Iniciar gravação", ForeColor = Color.FromArgb(75, 85, 99) });
@@ -833,7 +842,7 @@ public class MainForm : Form
         }
 
         return raw
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Split(new[] { ',', ';', (char)10, (char)13 }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .ToList();
     }
@@ -1183,20 +1192,15 @@ public class MainForm : Form
         var selectedRows = _eventsGrid.SelectedRows
             .Cast<DataGridViewRow>()
             .Select(r => r.DataBoundItem as EventRow)
-            .Where(r => r?.SourceEventIndex is not null)
+            .Where(r => r is not null)
             .Cast<EventRow>()
             .ToList();
 
-        if (selectedRows.Count == 0)
-        {
-            MessageBox.Show("As linhas selecionadas não apontam para ações reais editáveis.");
-            return;
-        }
-
-        var anchorDisplayIndex = _eventsGrid.CurrentCell?.RowIndex ?? selectedRows.Min(r => r.Index) - 1;
+        var anchorDisplayIndex = _eventsGrid.CurrentCell?.RowIndex ?? Math.Max(selectedRows.Min(r => r.Index) - 1, 0);
         var topIndex = _eventsGrid.FirstDisplayedScrollingRowIndex;
 
-        var indexes = selectedRows
+        var removableIndexes = selectedRows
+            .Where(r => r.Kind != "wait")
             .SelectMany(r => new int?[] { r.SourceEventIndex, r.SecondarySourceEventIndex })
             .Where(i => i.HasValue)
             .Select(i => i!.Value)
@@ -1204,8 +1208,39 @@ public class MainForm : Form
             .OrderByDescending(i => i)
             .ToList();
 
+        var waitRows = selectedRows
+            .Where(r => r.Kind == "wait" && r.WaitMs > 0)
+            .OrderByDescending(r => r.TimestampMs)
+            .ToList();
+
+        if (removableIndexes.Count == 0 && waitRows.Count == 0)
+        {
+            MessageBox.Show("As linhas selecionadas não apontam para ações reais editáveis.");
+            return;
+        }
+
         PushUndoState();
-        foreach (var idx in indexes)
+
+        foreach (var waitRow in waitRows)
+        {
+            if (waitRow.SourceEventIndex is not int waitSource || waitSource < 0 || waitSource >= _currentMacro.Events.Count)
+            {
+                continue;
+            }
+
+            var shift = waitRow.WaitMs;
+            if (shift <= 0)
+            {
+                continue;
+            }
+
+            for (var i = waitSource; i < _currentMacro.Events.Count; i++)
+            {
+                _currentMacro.Events[i].TimestampMs = Math.Max(_currentMacro.Events[i].TimestampMs - shift, 0);
+            }
+        }
+
+        foreach (var idx in removableIndexes)
         {
             if (idx >= 0 && idx < _currentMacro.Events.Count)
             {
@@ -1216,7 +1251,7 @@ public class MainForm : Form
         _hasUnsavedChanges = true;
         RefreshGrid();
         RestoreGridPosition(anchorDisplayIndex, topIndex);
-        Log($"{indexes.Count} ação(ões) excluída(s) da macro em memória.");
+        Log($"{removableIndexes.Count} ação(ões) excluída(s) e {waitRows.Count} espera(s) removida(s) da macro em memória.");
     }
 
     private void DeleteFilteredActions()
@@ -1235,6 +1270,7 @@ public class MainForm : Form
         }
 
         var indexes = bound
+            .Where(r => r.Kind != "wait")
             .SelectMany(r => new int?[] { r.SourceEventIndex, r.SecondarySourceEventIndex })
             .Where(i => i.HasValue)
             .Select(i => i!.Value)
@@ -1242,13 +1278,33 @@ public class MainForm : Form
             .OrderByDescending(i => i)
             .ToList();
 
-        if (indexes.Count == 0)
+        var waitRows = bound
+            .Where(r => r.Kind == "wait" && r.WaitMs > 0)
+            .OrderByDescending(r => r.TimestampMs)
+            .ToList();
+
+        if (indexes.Count == 0 && waitRows.Count == 0)
         {
             MessageBox.Show("Nenhuma ação real no filtro atual.");
             return;
         }
 
         PushUndoState();
+
+        foreach (var waitRow in waitRows)
+        {
+            if (waitRow.SourceEventIndex is not int waitSource || waitSource < 0 || waitSource >= _currentMacro.Events.Count)
+            {
+                continue;
+            }
+
+            var shift = waitRow.WaitMs;
+            for (var i = waitSource; i < _currentMacro.Events.Count; i++)
+            {
+                _currentMacro.Events[i].TimestampMs = Math.Max(_currentMacro.Events[i].TimestampMs - shift, 0);
+            }
+        }
+
         foreach (var idx in indexes)
         {
             if (idx >= 0 && idx < _currentMacro.Events.Count)
@@ -1260,7 +1316,7 @@ public class MainForm : Form
         _hasUnsavedChanges = true;
         RefreshGrid();
         RestoreGridPosition(0, 0);
-        Log($"{indexes.Count} ações removidas com base no filtro atual (edição em memória).");
+        Log($"{indexes.Count} ações removidas e {waitRows.Count} esperas removidas com base no filtro atual.");
     }
 
     private void RefreshGrid()
@@ -1359,7 +1415,8 @@ public class MainForm : Form
                         TotalWaitMs = waitMs,
                         LastTimestampMs = ev.TimestampMs,
                         Count = 1,
-                        Distance = Math.Abs(moveX - startX) + Math.Abs(moveY - startY)
+                        Distance = Math.Abs(moveX - startX) + Math.Abs(moveY - startY),
+                        LastSourceEventIndex = i
                     };
                 }
                 else
@@ -1370,6 +1427,7 @@ public class MainForm : Form
                     moveAggregation.TotalWaitMs += waitMs;
                     moveAggregation.LastTimestampMs = ev.TimestampMs;
                     moveAggregation.Count += 1;
+                    moveAggregation.LastSourceEventIndex = i;
                 }
 
                 lastX = moveX;
@@ -1383,7 +1441,7 @@ public class MainForm : Form
 
             if (TryBuildClickRow(macro.Events, i, prevTimestamp, ref lastX, ref lastY, out var clickRow, out var skipTo, out var clickTimestamp))
             {
-                AddWaitRowIfRelevant(rows, options, clickTimestamp, clickRow.WaitMs);
+                AddWaitRowIfRelevant(rows, options, clickTimestamp, clickRow.WaitMs, clickRow.SourceEventIndex);
                 if (MatchInspectFilter(options.Filter, clickRow.Kind, options))
                 {
                     rows.Add(clickRow);
@@ -1394,7 +1452,7 @@ public class MainForm : Form
                 continue;
             }
 
-            AddWaitRowIfRelevant(rows, options, ev.TimestampMs, waitMs);
+            AddWaitRowIfRelevant(rows, options, ev.TimestampMs, waitMs, i);
 
             var action = PrettyAction(ev);
             var value = PrettyValue(ev, ref lastX, ref lastY);
@@ -1487,7 +1545,7 @@ public class MainForm : Form
         return true;
     }
 
-    private static void AddWaitRowIfRelevant(List<EventRow> rows, InspectRenderOptions options, long timestampMs, long waitMs)
+    private static void AddWaitRowIfRelevant(List<EventRow> rows, InspectRenderOptions options, long timestampMs, long waitMs, int? sourceEventIndex = null)
     {
         if (waitMs <= 0)
         {
@@ -1519,7 +1577,7 @@ public class MainForm : Form
             TimestampMs = timestampMs,
             WaitMs = waitMs,
             Kind = "wait",
-            SourceEventIndex = null
+            SourceEventIndex = sourceEventIndex
         };
 
         if (MatchInspectFilter(options.Filter, waitRow.Kind, options))
@@ -1543,7 +1601,7 @@ public class MainForm : Form
 
         if (aggregation.TotalWaitMs > 0)
         {
-            AddWaitRowIfRelevant(rows, options, aggregation.LastTimestampMs, aggregation.TotalWaitMs);
+            AddWaitRowIfRelevant(rows, options, aggregation.LastTimestampMs, aggregation.TotalWaitMs, aggregation.LastSourceEventIndex);
         }
 
         var moveRow = new EventRow
@@ -2106,6 +2164,7 @@ public class MainForm : Form
         public long LastTimestampMs { get; set; }
         public int Count { get; set; }
         public int Distance { get; set; }
+        public int? LastSourceEventIndex { get; set; }
     }
 
     private sealed class EventRow
