@@ -13,6 +13,7 @@ public class MacroRecorderService
     private long _lastMouseMoveTs = -1;
     private int? _lastMouseMoveX;
     private int? _lastMouseMoveY;
+    private PendingMouseMove? _pendingMouseMove;
     private const int MinMouseMoveIntervalMs = 80;
     private const int MinMouseMoveDistancePx = 6;
 
@@ -29,13 +30,18 @@ public class MacroRecorderService
         _lastMouseMoveTs = -1;
         _lastMouseMoveX = null;
         _lastMouseMoveY = null;
+        _pendingMouseMove = null;
         _stopwatch.Restart();
         IsRecording = true;
 
         _hook = Hook.GlobalEvents();
         _hook.KeyDown += (_, e) =>
         {
-            AddEvent("key_down", new Dictionary<string, string> { ["key"] = e.KeyCode.ToString() });
+            if (ShouldRecordKeyEvent(e))
+            {
+                AddEvent("key_down", new Dictionary<string, string> { ["key"] = e.KeyCode.ToString() });
+            }
+
             if (string.Equals(e.KeyCode.ToString(), stopKey, StringComparison.OrdinalIgnoreCase))
             {
                 Stop();
@@ -44,7 +50,15 @@ public class MacroRecorderService
 
         _hook.KeyUp += (_, e) =>
         {
-            AddEvent("key_up", new Dictionary<string, string> { ["key"] = e.KeyCode.ToString() });
+            if (ShouldRecordKeyEvent(e))
+            {
+                AddEvent("key_up", new Dictionary<string, string> { ["key"] = e.KeyCode.ToString() });
+            }
+        };
+
+        _hook.KeyPress += (_, e) =>
+        {
+            AddEvent("text_input", new Dictionary<string, string> { ["text"] = e.KeyChar.ToString() });
         };
 
         _hook.MouseMove += (_, e) =>
@@ -52,12 +66,7 @@ public class MacroRecorderService
             var currentTs = _stopwatch.ElapsedMilliseconds;
             if (ShouldRecordMouseMove(e.X, e.Y, currentTs))
             {
-                AddEvent("mouse_move", new Dictionary<string, string>
-                {
-                    ["x"] = e.X.ToString(),
-                    ["y"] = e.Y.ToString()
-                });
-
+                _pendingMouseMove = new PendingMouseMove(e.X, e.Y, currentTs);
                 _lastMouseMoveTs = currentTs;
                 _lastMouseMoveX = e.X;
                 _lastMouseMoveY = e.Y;
@@ -114,10 +123,34 @@ public class MacroRecorderService
             return;
         }
 
+        FlushPendingMouseMove();
         _hook?.Dispose();
         _hook = null;
         _stopwatch.Stop();
         IsRecording = false;
+    }
+
+
+    private static bool ShouldRecordKeyEvent(KeyEventArgs e)
+    {
+        if (e.Control || e.Alt)
+        {
+            return true;
+        }
+
+        return e.KeyCode switch
+        {
+            Keys.ShiftKey or Keys.LShiftKey or Keys.RShiftKey
+            or Keys.ControlKey or Keys.LControlKey or Keys.RControlKey
+            or Keys.Menu or Keys.LMenu or Keys.RMenu
+            or Keys.Enter or Keys.Back or Keys.Tab or Keys.Escape
+            or Keys.Delete or Keys.Insert
+            or Keys.Up or Keys.Down or Keys.Left or Keys.Right
+            or Keys.Home or Keys.End or Keys.PageUp or Keys.PageDown
+            or Keys.F1 or Keys.F2 or Keys.F3 or Keys.F4 or Keys.F5 or Keys.F6
+            or Keys.F7 or Keys.F8 or Keys.F9 or Keys.F10 or Keys.F11 or Keys.F12 => true,
+            _ => false
+        };
     }
 
 
@@ -137,6 +170,11 @@ public class MacroRecorderService
 
     private void AddEvent(string kind, Dictionary<string, string> data)
     {
+        if (kind != "mouse_move")
+        {
+            FlushPendingMouseMove();
+        }
+
         _events.Add(new MacroEvent
         {
             Kind = kind,
@@ -144,6 +182,29 @@ public class MacroRecorderService
             Data = data
         });
     }
+
+    private void FlushPendingMouseMove()
+    {
+        if (_pendingMouseMove is null)
+        {
+            return;
+        }
+
+        _events.Add(new MacroEvent
+        {
+            Kind = "mouse_move",
+            TimestampMs = _pendingMouseMove.TimestampMs,
+            Data = new Dictionary<string, string>
+            {
+                ["x"] = _pendingMouseMove.X.ToString(),
+                ["y"] = _pendingMouseMove.Y.ToString()
+            }
+        });
+
+        _pendingMouseMove = null;
+    }
+
+    private sealed record PendingMouseMove(int X, int Y, long TimestampMs);
 }
 
 internal static class NativeInput
@@ -169,6 +230,9 @@ public sealed class PlaybackFilterOptions
     public bool PlayMouseClicks { get; init; } = true;
     public bool PlayKeyPresses { get; init; } = true;
     public bool RespectWaitTimes { get; init; } = true;
+    public int LoopCount { get; init; } = 1;
+    public int StartDelayMs { get; init; } = 0;
+    public int DelayJitterMs { get; init; } = 0;
 }
 
 public class MacroPlayerService
@@ -177,25 +241,94 @@ public class MacroPlayerService
     public async Task PlayAsync(MacroFile macro, Dictionary<string, string> parameters, double speed, CancellationToken ct, PlaybackFilterOptions? options = null)
     {
         options ??= new PlaybackFilterOptions();
-
-        long previous = 0;
-        foreach (var ev in macro.Events)
+        var playbackEvents = BuildPlaybackEvents(macro.Events, options);
+        if (playbackEvents.Count == 0)
         {
-            ct.ThrowIfCancellationRequested();
-            var delay = Math.Max((ev.TimestampMs - previous) / Math.Max(speed, 0.1), 0);
-            if (options.RespectWaitTimes && delay > 0)
-            {
-                await Task.Delay((int)delay, ct);
-            }
+            return;
+        }
 
-            if (ShouldPlayEvent(ev.Kind, options))
+        if (options.StartDelayMs > 0)
+        {
+            await Task.Delay(options.StartDelayMs, ct);
+        }
+
+        var loopCount = Math.Max(options.LoopCount, 1);
+        var jitter = Math.Max(options.DelayJitterMs, 0);
+        var random = jitter > 0 ? new Random() : null;
+
+        for (var loop = 0; loop < loopCount; loop++)
+        {
+            long previous = 0;
+            foreach (var ev in playbackEvents)
             {
+                ct.ThrowIfCancellationRequested();
+                var delay = Math.Max((ev.TimestampMs - previous) / Math.Max(speed, 0.1), 0);
+                if (options.RespectWaitTimes && delay > 0)
+                {
+                    if (random is not null)
+                    {
+                        delay = Math.Max(delay + random.Next(-jitter, jitter + 1), 0);
+                    }
+
+                    await Task.Delay((int)delay, ct);
+                }
+
                 var data = ev.Data.ToDictionary(kvp => kvp.Key, kvp => ApplyParameters(kvp.Value, parameters));
                 Execute(ev.Kind, data);
+
+                previous = ev.TimestampMs;
+            }
+        }
+    }
+
+    private static List<MacroEvent> BuildPlaybackEvents(IEnumerable<MacroEvent> events, PlaybackFilterOptions options)
+    {
+        var filtered = events
+            .Where(ev => ShouldPlayEvent(ev.Kind, options))
+            .Select(ev => new MacroEvent
+            {
+                Kind = ev.Kind,
+                TimestampMs = ev.TimestampMs,
+                Data = new Dictionary<string, string>(ev.Data)
+            })
+            .ToList();
+
+        return CompactMouseMoves(filtered);
+    }
+
+    private static List<MacroEvent> CompactMouseMoves(List<MacroEvent> events)
+    {
+        if (events.Count == 0)
+        {
+            return events;
+        }
+
+        var compacted = new List<MacroEvent>(events.Count);
+        MacroEvent? pendingMove = null;
+
+        foreach (var ev in events)
+        {
+            if (ev.Kind == "mouse_move")
+            {
+                pendingMove = ev;
+                continue;
             }
 
-            previous = ev.TimestampMs;
+            if (pendingMove is not null)
+            {
+                compacted.Add(pendingMove);
+                pendingMove = null;
+            }
+
+            compacted.Add(ev);
         }
+
+        if (pendingMove is not null)
+        {
+            compacted.Add(pendingMove);
+        }
+
+        return compacted;
     }
 
     private static bool ShouldPlayEvent(string kind, PlaybackFilterOptions options)
@@ -204,7 +337,7 @@ public class MacroPlayerService
         {
             "mouse_move" => options.PlayMouseMoves,
             "mouse_down" or "mouse_up" or "mouse_wheel" => options.PlayMouseClicks,
-            "key_down" or "key_up" => options.PlayKeyPresses,
+            "key_down" or "key_up" or "text_input" => options.PlayKeyPresses,
             _ => true
         };
     }
@@ -220,6 +353,12 @@ public class MacroPlayerService
         if (kind == "key_up" && data.TryGetValue("key", out var keyUp) && TryParseKey(keyUp, out var ku))
         {
             NativeInput.keybd_event((byte)ku, 0, NativeInput.KEYEVENTF_KEYUP, UIntPtr.Zero);
+            return;
+        }
+
+        if (kind == "text_input" && data.TryGetValue("text", out var text) && !string.IsNullOrEmpty(text))
+        {
+            SendKeys.SendWait(EscapeSendKeysText(text));
             return;
         }
 
@@ -255,6 +394,22 @@ public class MacroPlayerService
         {
             NativeInput.mouse_event(NativeInput.MOUSEEVENTF_WHEEL, 0, 0, unchecked((uint)delta), UIntPtr.Zero);
         }
+    }
+
+
+    private static string EscapeSendKeysText(string text)
+    {
+        return text
+            .Replace("{", "{{}", StringComparison.Ordinal)
+            .Replace("}", "{}}", StringComparison.Ordinal)
+            .Replace("+", "{+}", StringComparison.Ordinal)
+            .Replace("^", "{^}", StringComparison.Ordinal)
+            .Replace("%", "{%}", StringComparison.Ordinal)
+            .Replace("~", "{~}", StringComparison.Ordinal)
+            .Replace("(", "{(}", StringComparison.Ordinal)
+            .Replace(")", "{)}", StringComparison.Ordinal)
+            .Replace("[", "{[}", StringComparison.Ordinal)
+            .Replace("]", "{]}", StringComparison.Ordinal);
     }
 
 
