@@ -81,6 +81,7 @@ public class MainForm : Form
     private readonly Stack<MacroFile> _redoStack = new();
     private int _dragRowStartIndex = -1;
     private Point _dragStartPoint = Point.Empty;
+    private bool _gridRefreshQueued;
 
 
     public MainForm()
@@ -961,16 +962,52 @@ public class MainForm : Form
     private static MacroFile BuildMacroForVariableIteration(MacroFile macro, Dictionary<string, string> iterationValues, IReadOnlyList<string> variableOrder)
     {
         var clone = CloneMacroFile(macro);
-        if (HasVariablePlaceholders(clone, variableOrder))
+        var hasInlineTokens = false;
+
+        foreach (var ev in clone.Events)
         {
-            return clone;
+            var keys = ev.Data.Keys.ToList();
+            foreach (var key in keys)
+            {
+                var value = ev.Data[key];
+                var replaced = value;
+
+                foreach (var pair in iterationValues)
+                {
+                    replaced = replaced
+                        .Replace("{{" + pair.Key + "}}", pair.Value, StringComparison.OrdinalIgnoreCase)
+                        .Replace("{" + pair.Key + "}", pair.Value, StringComparison.OrdinalIgnoreCase);
+                }
+
+                if (variableOrder.Count > 0 && iterationValues.TryGetValue(variableOrder[0], out var primaryValue))
+                {
+                    replaced = replaced
+                        .Replace("{{value}}", primaryValue, StringComparison.OrdinalIgnoreCase)
+                        .Replace("{value}", primaryValue, StringComparison.OrdinalIgnoreCase)
+                        .Replace("{{item}}", primaryValue, StringComparison.OrdinalIgnoreCase)
+                        .Replace("{item}", primaryValue, StringComparison.OrdinalIgnoreCase);
+                }
+
+                if (!string.Equals(value, replaced, StringComparison.Ordinal))
+                {
+                    hasInlineTokens = true;
+                }
+
+                ev.Data[key] = replaced;
+            }
         }
 
         var textInputs = clone.Events.Where(ev => ev.Kind == "text_input").ToList();
         for (var i = 0; i < variableOrder.Count && i < textInputs.Count; i++)
         {
-            var key = variableOrder[i];
-            if (iterationValues.TryGetValue(key, out var currentValue))
+            var variableKey = variableOrder[i];
+            if (!iterationValues.TryGetValue(variableKey, out var currentValue))
+            {
+                continue;
+            }
+
+            var existingText = textInputs[i].Data.GetValueOrDefault("text", string.Empty);
+            if (!hasInlineTokens || string.IsNullOrWhiteSpace(existingText))
             {
                 textInputs[i].Data["text"] = currentValue;
             }
@@ -981,26 +1018,15 @@ public class MainForm : Form
             var key = variableOrder[0];
             if (iterationValues.TryGetValue(key, out var currentValue))
             {
-                textInputs[0].Data["text"] = currentValue;
+                var existingText = textInputs[0].Data.GetValueOrDefault("text", string.Empty);
+                if (!hasInlineTokens || string.IsNullOrWhiteSpace(existingText))
+                {
+                    textInputs[0].Data["text"] = currentValue;
+                }
             }
         }
 
         return clone;
-    }
-
-    private static bool HasVariablePlaceholders(MacroFile macro, IEnumerable<string> variableNames)
-    {
-        var names = variableNames.ToList();
-        var tokens = names
-            .SelectMany(name => new[]
-            {
-                "{{" + name + "}}",
-                "{" + name + "}"
-            })
-            .Concat(new[] { "{{value}}", "{{item}}", "{value}", "{item}" })
-            .ToList();
-
-        return macro.Events.Any(ev => ev.Data.Values.Any(v => tokens.Any(t => v.Contains(t, StringComparison.OrdinalIgnoreCase))));
     }
 
     private static MacroFile CloneMacroFile(MacroFile source)
@@ -1903,16 +1929,62 @@ public class MainForm : Form
             return;
         }
 
-        if (!TryBuildEventFromDesigner(_currentMacro.Events.LastOrDefault()?.TimestampMs ?? 0, out var newEvent))
+        var insertAfterIndex = ResolveSelectedInsertAnchorIndex();
+        var baseTimestamp = insertAfterIndex >= 0 && insertAfterIndex < _currentMacro.Events.Count
+            ? _currentMacro.Events[insertAfterIndex].TimestampMs
+            : _currentMacro.Events.LastOrDefault()?.TimestampMs ?? 0;
+
+        if (!TryBuildEventFromDesigner(baseTimestamp, out var newEvent))
         {
             return;
         }
 
         PushUndoState();
-        _currentMacro.Events.Add(newEvent);
+        var targetInsertIndex = insertAfterIndex + 1;
+        if (targetInsertIndex >= 0 && targetInsertIndex <= _currentMacro.Events.Count)
+        {
+            _currentMacro.Events.Insert(targetInsertIndex, newEvent);
+        }
+        else
+        {
+            _currentMacro.Events.Add(newEvent);
+        }
+
         _hasUnsavedChanges = true;
         RefreshGrid();
-        Log($"Ação '{newEvent.Kind}' inserida no final da macro.");
+        Log($"Ação '{newEvent.Kind}' inserida abaixo da linha selecionada.");
+    }
+
+    private int ResolveSelectedInsertAnchorIndex()
+    {
+        if (_currentMacro is null || _eventsGrid.SelectedRows.Count == 0)
+        {
+            return _currentMacro?.Events.Count - 1 ?? -1;
+        }
+
+        if (_eventsGrid.SelectedRows[0].DataBoundItem is not EventRow row)
+        {
+            return _currentMacro.Events.Count - 1;
+        }
+
+        if (row.SecondarySourceEventIndex is int secondary && secondary >= 0 && secondary < _currentMacro.Events.Count)
+        {
+            return secondary;
+        }
+
+        if (row.SourceEventIndex is int source && source >= 0 && source < _currentMacro.Events.Count)
+        {
+            return source;
+        }
+
+        var fallback = _currentMacro.Events
+            .Select((ev, idx) => new { ev, idx })
+            .Where(x => x.ev.TimestampMs <= row.TimestampMs)
+            .Select(x => x.idx)
+            .DefaultIfEmpty(_currentMacro.Events.Count - 1)
+            .Max();
+
+        return Math.Clamp(fallback, -1, _currentMacro.Events.Count - 1);
     }
 
     private void UpdateSelectedActionFromDesigner()
@@ -2197,12 +2269,33 @@ public class MainForm : Form
         {
             UndoInternal();
             Log("Edição inválida para esta linha. Use formato esperado.");
-            RefreshGrid();
+            RequestGridRefresh();
             return;
         }
 
         _hasUnsavedChanges = true;
-        RefreshGrid();
+        RequestGridRefresh();
+    }
+
+    private void RequestGridRefresh()
+    {
+        if (_gridRefreshQueued || IsDisposed)
+        {
+            return;
+        }
+
+        _gridRefreshQueued = true;
+        BeginInvoke(new Action(() =>
+        {
+            try
+            {
+                RefreshGrid();
+            }
+            finally
+            {
+                _gridRefreshQueued = false;
+            }
+        }));
     }
 
     private void RestoreGridPosition(int desiredRowIndex, int desiredTopRow)

@@ -514,7 +514,9 @@ public class MacroPlayerService
         var output = value;
         foreach (var pair in parameters)
         {
-            output = output.Replace("{{" + pair.Key + "}}", pair.Value, StringComparison.Ordinal);
+            output = output
+                .Replace("{{" + pair.Key + "}}", pair.Value, StringComparison.OrdinalIgnoreCase)
+                .Replace("{" + pair.Key + "}", pair.Value, StringComparison.OrdinalIgnoreCase);
         }
 
         return output;
