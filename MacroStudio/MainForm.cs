@@ -10,6 +10,12 @@ public class MainForm : Form
     private readonly TextBox _stopKey = new() { Width = 80, Text = "F8" };
     private readonly TextBox _model = new() { Width = 180, Text = "gemini-2.0-flash" };
     private readonly TextBox _waitThreshold = new() { Width = 70, Text = "250" };
+    private readonly TextBox _loopCount = new() { Width = 60, Text = "1" };
+    private readonly TextBox _startDelayMs = new() { Width = 80, Text = "0" };
+    private readonly TextBox _jitterMs = new() { Width = 80, Text = "0" };
+    private readonly ComboBox _speedPreset = new() { Width = 126, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly TextBox _variableName = new() { Width = 100, Text = "periodo" };
+    private readonly TextBox _variableValues = new() { Width = 520, Text = "" };
 
     private readonly TextBox _log = new()
     {
@@ -37,6 +43,16 @@ public class MainForm : Form
     private readonly CheckBox _naturalView = new() { Text = "Visão natural (menos spam)", Checked = true, AutoSize = true };
     private readonly CheckBox _editMode = new() { Text = "Modo edição (ações reais)", Checked = false, AutoSize = true };
 
+    private readonly ComboBox _designerActionType = new() { Width = 220, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly TextBox _designerValue = new() { Width = 700, Text = "" };
+    private readonly TextBox _designerLabel = new() { Width = 160, Text = "" };
+    private readonly TextBox _designerComment = new() { Width = 340, Text = "" };
+
+    private readonly TextBox _hkStartRecord = new() { Width = 120, Text = "Ctrl+R" };
+    private readonly TextBox _hkStopRecord = new() { Width = 120, Text = "Ctrl+Shift+R" };
+    private readonly TextBox _hkPlay = new() { Width = 120, Text = "Ctrl+P" };
+    private readonly TextBox _hkStopPlay = new() { Width = 120, Text = "Ctrl+Shift+P" };
+
     private readonly DataGridView _eventsGrid = new()
     {
         Width = 1140,
@@ -59,14 +75,22 @@ public class MainForm : Form
     private CancellationTokenSource? _playCts;
     private MacroFile? _currentMacro;
     private bool _hasUnsavedChanges;
+    private Label? _statusLabel;
+    private MacroFile? _lastReplayMacro;
+    private Dictionary<string, string> _lastReplayParameters = new();
+    private double _lastReplaySpeed = 1.0;
+    private PlaybackFilterOptions _lastReplayOptions = new();
 
     public MainForm()
     {
         Text = "Macro Studio Professional";
-        Width = 1180;
-        Height = 860;
+        Width = 1220;
+        Height = 900;
+        MinimumSize = new Size(1220, 900);
         StartPosition = FormStartPosition.CenterScreen;
-        BackColor = Color.FromArgb(245, 247, 251);
+        KeyPreview = true;
+        DoubleBuffered = true;
+        BackColor = Color.FromArgb(239, 242, 247);
         Font = new Font("Segoe UI", 10F, FontStyle.Regular, GraphicsUnit.Point);
 
         BuildUi();
@@ -74,63 +98,125 @@ public class MainForm : Form
 
     private void BuildUi()
     {
-        var y = 14;
+        Controls.Clear();
+
+        var hero = new Panel
+        {
+            Left = 16,
+            Top = 14,
+            Width = ClientSize.Width - 32,
+            Height = 82,
+            BackColor = Color.FromArgb(15, 23, 42)
+        };
 
         var title = new Label
         {
             Left = 18,
-            Top = y,
-            Width = 600,
+            Top = 14,
+            Width = 520,
             Height = 30,
-            Text = "Macro Studio",
-            Font = new Font("Segoe UI Semibold", 17F, FontStyle.Bold)
+            Text = "Macro Studio • Pro Console",
+            Font = new Font("Segoe UI Semibold", 17F, FontStyle.Bold),
+            ForeColor = Color.White
         };
-        Controls.Add(title);
 
-        y += 30;
-        Controls.Add(new Label
+        var subtitle = new Label
         {
             Left = 20,
-            Top = y,
-            Width = 760,
+            Top = 46,
+            Width = 820,
             Height = 20,
-            Text = "Editor profissional com inspeção inteligente, edição em memória e playback filtrado.",
-            ForeColor = Color.FromArgb(75, 85, 99)
-        });
+            Text = "Visual avançado com timeline inteligente, filtros e execução controlada por teclado.",
+            ForeColor = Color.FromArgb(191, 219, 254)
+        };
 
-        y += 28;
-        BuildMacroFileSection(ref y);
-        BuildActionSection(ref y);
-        BuildFilterSection(ref y);
-        BuildGridSection(ref y);
-        BuildLogSection(ref y);
+        _statusLabel = new Label
+        {
+            Left = 860,
+            Top = 28,
+            Width = 260,
+            Height = 30,
+            Text = "Status: pronto",
+            TextAlign = ContentAlignment.MiddleCenter,
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold),
+            BorderStyle = BorderStyle.FixedSingle,
+            BackColor = Color.FromArgb(30, 64, 175)
+        };
+
+        hero.Controls.Add(title);
+        hero.Controls.Add(subtitle);
+        hero.Controls.Add(_statusLabel);
+        Controls.Add(hero);
+
+        var tabs = new TabControl
+        {
+            Left = 16,
+            Top = hero.Bottom + 10,
+            Width = ClientSize.Width - 32,
+            Height = ClientSize.Height - (hero.Bottom + 26),
+            Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
+        };
+
+        var playbackPage = new TabPage("Gravação e Replay") { BackColor = Color.FromArgb(239, 242, 247), AutoScroll = true };
+        var inspectorPage = new TabPage("Inspeção e Edição") { BackColor = Color.FromArgb(239, 242, 247), AutoScroll = true };
+        var hotkeysPage = new TabPage("Configurações de Hotkeys") { BackColor = Color.FromArgb(239, 242, 247), AutoScroll = true };
+
+        tabs.TabPages.Add(playbackPage);
+        tabs.TabPages.Add(inspectorPage);
+        tabs.TabPages.Add(hotkeysPage);
+        Controls.Add(tabs);
+
+        var yPlayback = 12;
+        BuildMacroFileSection(playbackPage, ref yPlayback);
+        BuildActionSection(playbackPage, ref yPlayback);
+        BuildLogSection(playbackPage, ref yPlayback);
+
+        var yInspector = 12;
+        BuildFilterSection(inspectorPage, ref yInspector);
+        BuildMacroDesignerSection(inspectorPage, ref yInspector);
+        BuildGridSection(inspectorPage, ref yInspector);
+
+        var yHotkeys = 12;
+        BuildHotkeysConfigSection(hotkeysPage, ref yHotkeys);
     }
 
-    private Panel CreateCard(string title, int y, int height)
+    private Panel CreateCard(Control host, string title, int y, int height)
     {
         var card = new Panel
         {
             Left = 16,
             Top = y,
-            Width = 1144,
+            Width = Math.Max(host.ClientSize.Width - 34, 900),
             Height = height,
             BackColor = Color.White,
-            BorderStyle = BorderStyle.FixedSingle
+            BorderStyle = BorderStyle.FixedSingle,
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+        };
+
+        var accent = new Panel
+        {
+            Left = 0,
+            Top = 0,
+            Width = 6,
+            Height = card.Height,
+            BackColor = Color.FromArgb(37, 99, 235)
         };
 
         var header = new Label
         {
-            Left = 14,
+            Left = 16,
             Top = 10,
-            Width = 700,
+            Width = 720,
             Height = 20,
             Text = title,
             Font = new Font("Segoe UI Semibold", 10.5F, FontStyle.Bold),
             ForeColor = Color.FromArgb(17, 24, 39)
         };
 
+        card.Controls.Add(accent);
         card.Controls.Add(header);
-        Controls.Add(card);
+        host.Controls.Add(card);
         return card;
     }
 
@@ -139,6 +225,8 @@ public class MainForm : Form
         if (c is TextBox tb)
         {
             tb.BorderStyle = BorderStyle.FixedSingle;
+            tb.BackColor = Color.FromArgb(249, 250, 251);
+            tb.ForeColor = Color.FromArgb(17, 24, 39);
         }
 
         c.Font = new Font("Segoe UI", 10F, FontStyle.Regular, GraphicsUnit.Point);
@@ -161,6 +249,8 @@ public class MainForm : Form
         };
 
         btn.FlatAppearance.BorderSize = 0;
+        btn.MouseEnter += (_, _) => btn.BackColor = Color.FromArgb(29, 78, 216);
+        btn.MouseLeave += (_, _) => btn.BackColor = Color.FromArgb(37, 99, 235);
         return btn;
     }
 
@@ -182,6 +272,8 @@ public class MainForm : Form
 
         btn.FlatAppearance.BorderColor = Color.FromArgb(209, 213, 219);
         btn.FlatAppearance.BorderSize = 1;
+        btn.MouseEnter += (_, _) => btn.BackColor = Color.FromArgb(229, 231, 235);
+        btn.MouseLeave += (_, _) => btn.BackColor = Color.FromArgb(243, 244, 246);
         return btn;
     }
 
@@ -189,11 +281,13 @@ public class MainForm : Form
     {
         check.ForeColor = Color.FromArgb(55, 65, 81);
         check.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular);
+        check.BackColor = Color.Transparent;
+        check.FlatStyle = FlatStyle.Flat;
     }
 
-    private void BuildMacroFileSection(ref int y)
+    private void BuildMacroFileSection(Control host, ref int y)
     {
-        var card = CreateCard("Arquivo da macro", y, 92);
+        var card = CreateCard(host, "Arquivo da macro", y, 92);
 
         card.Controls.Add(new Label { Left = 14, Top = 44, Width = 96, Text = "Macro (.json)", ForeColor = Color.FromArgb(75, 85, 99) });
 
@@ -217,38 +311,67 @@ public class MainForm : Form
         y += card.Height + 10;
     }
 
-    private void BuildActionSection(ref int y)
+    private void BuildActionSection(Control host, ref int y)
     {
-        var card = CreateCard("Record and Playback", y, 122);
+        var card = CreateCard(host, "Record and Playback", y, 208);
 
         card.Controls.Add(new Label { Left = 14, Top = 44, Width = 86, Text = "Parâmetros", ForeColor = Color.FromArgb(75, 85, 99) });
         _params.Left = 105;
         _params.Top = 40;
+        _params.Width = 470;
         StyleInput(_params);
         card.Controls.Add(_params);
 
-        card.Controls.Add(new Label { Left = 634, Top = 44, Width = 50, Text = "Speed", ForeColor = Color.FromArgb(75, 85, 99) });
-        _speed.Left = 680;
+        card.Controls.Add(new Label { Left = 588, Top = 44, Width = 50, Text = "Speed", ForeColor = Color.FromArgb(75, 85, 99) });
+        _speed.Left = 634;
         _speed.Top = 40;
         StyleInput(_speed);
         card.Controls.Add(_speed);
 
-        card.Controls.Add(new Label { Left = 770, Top = 44, Width = 56, Text = "Stop key", ForeColor = Color.FromArgb(75, 85, 99) });
-        _stopKey.Left = 830;
+        card.Controls.Add(new Label { Left = 724, Top = 44, Width = 56, Text = "Stop key", ForeColor = Color.FromArgb(75, 85, 99) });
+        _stopKey.Left = 784;
         _stopKey.Top = 40;
         StyleInput(_stopKey);
         card.Controls.Add(_stopKey);
 
-        card.Controls.Add(new Label { Left = 922, Top = 44, Width = 50, Text = "Modelo", ForeColor = Color.FromArgb(75, 85, 99) });
-        _model.Left = 980;
+        card.Controls.Add(new Label { Left = 876, Top = 44, Width = 50, Text = "Modelo", ForeColor = Color.FromArgb(75, 85, 99) });
+        _model.Left = 934;
         _model.Top = 40;
+        _model.Width = 188;
         StyleInput(_model);
         card.Controls.Add(_model);
 
-        var btnRecord = CreatePrimaryButton("● Gravar", 14, 78, 120);
-        var btnStopRecord = CreateGhostButton("■ Parar Gravação", 140, 78, 140);
-        var btnPlay = CreatePrimaryButton("▶ Reproduzir", 286, 78, 120);
-        var btnStopPlay = CreateGhostButton("■ Parar Replay", 412, 78, 120);
+        card.Controls.Add(new Label { Left = 14, Top = 82, Width = 74, Text = "Preset", ForeColor = Color.FromArgb(75, 85, 99) });
+        _speedPreset.Left = 88;
+        _speedPreset.Top = 78;
+        _speedPreset.Items.Clear();
+        _speedPreset.Items.AddRange(new object[] { "Custom", "Lento (0.5x)", "Normal (1x)", "Rápido (2x)", "Muito rápido (4x)" });
+        _speedPreset.SelectedIndex = 2;
+        _speedPreset.SelectedIndexChanged += (_, _) => ApplySpeedPreset();
+        card.Controls.Add(_speedPreset);
+
+        card.Controls.Add(new Label { Left = 230, Top = 82, Width = 70, Text = "Loops", ForeColor = Color.FromArgb(75, 85, 99) });
+        _loopCount.Left = 280;
+        _loopCount.Top = 78;
+        StyleInput(_loopCount);
+        card.Controls.Add(_loopCount);
+
+        card.Controls.Add(new Label { Left = 350, Top = 82, Width = 95, Text = "Delay inicial", ForeColor = Color.FromArgb(75, 85, 99) });
+        _startDelayMs.Left = 436;
+        _startDelayMs.Top = 78;
+        StyleInput(_startDelayMs);
+        card.Controls.Add(_startDelayMs);
+
+        card.Controls.Add(new Label { Left = 525, Top = 82, Width = 90, Text = "Jitter (ms)", ForeColor = Color.FromArgb(75, 85, 99) });
+        _jitterMs.Left = 606;
+        _jitterMs.Top = 78;
+        StyleInput(_jitterMs);
+        card.Controls.Add(_jitterMs);
+
+        var btnRecord = CreatePrimaryButton("● Gravar", 14, 132, 110);
+        var btnStopRecord = CreateGhostButton("■ Parar Gravação", 130, 132, 140);
+        var btnPlay = CreatePrimaryButton("▶ Reproduzir", 276, 132, 120);
+        var btnStopPlay = CreateGhostButton("■ Parar", 402, 132, 96);
 
         btnRecord.Click += async (_, _) => await StartRecordAsync();
         btnStopRecord.Click += async (_, _) => await StopRecordAsync();
@@ -260,31 +383,148 @@ public class MainForm : Form
         card.Controls.Add(btnPlay);
         card.Controls.Add(btnStopPlay);
 
-        _playMouseMoves.Left = 550;
-        _playMouseMoves.Top = 84;
-        _playMouseClicks.Left = 665;
-        _playMouseClicks.Top = 84;
-        _playKeyPresses.Left = 780;
-        _playKeyPresses.Top = 84;
-        _playWaitTimes.Left = 892;
-        _playWaitTimes.Top = 84;
+        y += card.Height + 10;
+    }
 
-        StyleToggle(_playMouseMoves);
-        StyleToggle(_playMouseClicks);
-        StyleToggle(_playKeyPresses);
-        StyleToggle(_playWaitTimes);
+    private void BuildHotkeysConfigSection(Control host, ref int y)
+    {
+        var card = CreateCard(host, "Configuração de atalhos", y, 210);
 
-        card.Controls.Add(_playMouseMoves);
-        card.Controls.Add(_playMouseClicks);
-        card.Controls.Add(_playKeyPresses);
-        card.Controls.Add(_playWaitTimes);
+        card.Controls.Add(new Label { Left = 14, Top = 44, Width = 300, Text = "Iniciar gravação", ForeColor = Color.FromArgb(75, 85, 99) });
+        _hkStartRecord.Left = 160;
+        _hkStartRecord.Top = 40;
+        StyleInput(_hkStartRecord);
+        card.Controls.Add(_hkStartRecord);
+
+        card.Controls.Add(new Label { Left = 320, Top = 44, Width = 300, Text = "Parar gravação", ForeColor = Color.FromArgb(75, 85, 99) });
+        _hkStopRecord.Left = 440;
+        _hkStopRecord.Top = 40;
+        StyleInput(_hkStopRecord);
+        card.Controls.Add(_hkStopRecord);
+
+        card.Controls.Add(new Label { Left = 14, Top = 84, Width = 300, Text = "Reproduzir gravação", ForeColor = Color.FromArgb(75, 85, 99) });
+        _hkPlay.Left = 160;
+        _hkPlay.Top = 80;
+        StyleInput(_hkPlay);
+        card.Controls.Add(_hkPlay);
+
+        card.Controls.Add(new Label { Left = 320, Top = 84, Width = 300, Text = "Parar replay", ForeColor = Color.FromArgb(75, 85, 99) });
+        _hkStopPlay.Left = 440;
+        _hkStopPlay.Top = 80;
+        StyleInput(_hkStopPlay);
+        card.Controls.Add(_hkStopPlay);
+
+        var btnDefaults = CreateGhostButton("Restaurar padrão", 14, 126, 150);
+        btnDefaults.Click += (_, _) =>
+        {
+            _hkStartRecord.Text = "Ctrl+R";
+            _hkStopRecord.Text = "Ctrl+Shift+R";
+            _hkPlay.Text = "Ctrl+P";
+            _hkStopPlay.Text = "Ctrl+Shift+P";
+            Log("Hotkeys restauradas para o padrão.");
+        };
+
+        card.Controls.Add(btnDefaults);
+        card.Controls.Add(new Label
+        {
+            Left = 176,
+            Top = 132,
+            Width = 920,
+            Height = 56,
+            ForeColor = Color.FromArgb(75, 85, 99),
+            Text = "Formato aceito: Ctrl+R, Ctrl+Shift+R, Alt+P, F8 etc. ESC continua como parada rápida de replay."
+        });
 
         y += card.Height + 10;
     }
 
-    private void BuildFilterSection(ref int y)
+    private void BuildMacroDesignerSection(Control host, ref int y)
     {
-        var card = CreateCard("Inspeção inteligente", y, 124);
+        var card = CreateCard(host, "Ações e variáveis", y, 252);
+
+        card.Controls.Add(new Label { Left = 14, Top = 44, Width = 90, Text = "Tipo ação", ForeColor = Color.FromArgb(75, 85, 99) });
+        _designerActionType.Left = 102;
+        _designerActionType.Top = 40;
+        _designerActionType.Items.Clear();
+        _designerActionType.Items.AddRange(new object[]
+        {
+            "Text input",
+            "Wait",
+            "Key down",
+            "Key up",
+            "Mouse left click"
+        });
+        _designerActionType.SelectedIndex = 0;
+        card.Controls.Add(_designerActionType);
+
+        card.Controls.Add(new Label { Left = 336, Top = 44, Width = 48, Text = "Valor", ForeColor = Color.FromArgb(75, 85, 99) });
+        _designerValue.Left = 384;
+        _designerValue.Top = 40;
+        StyleInput(_designerValue);
+        card.Controls.Add(_designerValue);
+
+        card.Controls.Add(new Label { Left = 14, Top = 84, Width = 90, Text = "Label", ForeColor = Color.FromArgb(75, 85, 99) });
+        _designerLabel.Left = 102;
+        _designerLabel.Top = 80;
+        StyleInput(_designerLabel);
+        card.Controls.Add(_designerLabel);
+
+        card.Controls.Add(new Label { Left = 276, Top = 84, Width = 74, Text = "Comentário", ForeColor = Color.FromArgb(75, 85, 99) });
+        _designerComment.Left = 350;
+        _designerComment.Top = 80;
+        StyleInput(_designerComment);
+        card.Controls.Add(_designerComment);
+
+        card.Controls.Add(new Label { Left = 14, Top = 120, Width = 106, Text = "Nome variável", ForeColor = Color.FromArgb(75, 85, 99) });
+        _variableName.Left = 120;
+        _variableName.Top = 116;
+        StyleInput(_variableName);
+        card.Controls.Add(_variableName);
+
+        card.Controls.Add(new Label { Left = 232, Top = 120, Width = 174, Text = "Valores CSV (loop automático)", ForeColor = Color.FromArgb(75, 85, 99) });
+        _variableValues.Left = 406;
+        _variableValues.Top = 116;
+        _variableValues.Width = 716;
+        StyleInput(_variableValues);
+        card.Controls.Add(_variableValues);
+
+        var btnInsert = CreatePrimaryButton("Inserir ação", 14, 158, 126);
+        var btnUpdate = CreateGhostButton("Atualizar selecionada", 146, 158, 166);
+        var btnDuplicate = CreateGhostButton("Duplicar selecionada", 318, 158, 154);
+        var btnMoveUp = CreateGhostButton("Mover acima", 478, 158, 110);
+        var btnMoveDown = CreateGhostButton("Mover abaixo", 594, 158, 112);
+        var btnDelete = CreateGhostButton("Excluir selecionada", 712, 158, 140);
+
+        btnInsert.Click += (_, _) => InsertDesignedAction();
+        btnUpdate.Click += (_, _) => UpdateSelectedActionFromDesigner();
+        btnDuplicate.Click += (_, _) => DuplicateSelectedAction();
+        btnMoveUp.Click += (_, _) => MoveSelectedAction(-1);
+        btnMoveDown.Click += (_, _) => MoveSelectedAction(1);
+        btnDelete.Click += (_, _) => DeleteSelectedAction();
+
+        card.Controls.Add(btnInsert);
+        card.Controls.Add(btnUpdate);
+        card.Controls.Add(btnDuplicate);
+        card.Controls.Add(btnMoveUp);
+        card.Controls.Add(btnMoveDown);
+        card.Controls.Add(btnDelete);
+
+        card.Controls.Add(new Label
+        {
+            Left = 14,
+            Top = 204,
+            Width = 1110,
+            Height = 34,
+            ForeColor = Color.FromArgb(75, 85, 99),
+            Text = "Dica: selecione uma linha real na timeline para preencher e editar. Para variável no texto, use {{periodo}}."
+        });
+
+        y += card.Height + 10;
+    }
+
+    private void BuildFilterSection(Control host, ref int y)
+    {
+        var card = CreateCard(host, "Inspeção inteligente", y, 164);
 
         card.Controls.Add(new Label { Left = 14, Top = 44, Width = 50, Text = "Filtro", ForeColor = Color.FromArgb(75, 85, 99) });
         _inspectFilter.Left = 64;
@@ -323,9 +563,30 @@ public class MainForm : Form
         btnRefresh.Click += (_, _) => RefreshGrid();
         card.Controls.Add(btnRefresh);
 
-        var btnDeleteSelected = CreateGhostButton("Excluir selecionada", 14, 78, 150);
-        var btnDeleteFiltered = CreateGhostButton("Excluir filtradas", 170, 78, 130);
-        var btnSaveEdits = CreatePrimaryButton("Salvar alterações", 306, 78, 150);
+        _playMouseMoves.Left = 14;
+        _playMouseMoves.Top = 80;
+        _playMouseClicks.Left = 128;
+        _playMouseClicks.Top = 80;
+        _playKeyPresses.Left = 246;
+        _playKeyPresses.Top = 80;
+        _playWaitTimes.Left = 358;
+        _playWaitTimes.Top = 80;
+        _playMouseMoves.CheckedChanged += (_, _) => Log("Filtro de replay atualizado.");
+        _playMouseClicks.CheckedChanged += (_, _) => Log("Filtro de replay atualizado.");
+        _playKeyPresses.CheckedChanged += (_, _) => Log("Filtro de replay atualizado.");
+        _playWaitTimes.CheckedChanged += (_, _) => Log("Filtro de replay atualizado.");
+        StyleToggle(_playMouseMoves);
+        StyleToggle(_playMouseClicks);
+        StyleToggle(_playKeyPresses);
+        StyleToggle(_playWaitTimes);
+        card.Controls.Add(_playMouseMoves);
+        card.Controls.Add(_playMouseClicks);
+        card.Controls.Add(_playKeyPresses);
+        card.Controls.Add(_playWaitTimes);
+
+        var btnDeleteSelected = CreateGhostButton("Excluir selecionada", 500, 74, 150);
+        var btnDeleteFiltered = CreateGhostButton("Excluir filtradas", 656, 74, 130);
+        var btnSaveEdits = CreatePrimaryButton("Salvar alterações", 792, 74, 150);
 
         btnDeleteSelected.Click += (_, _) => DeleteSelectedAction();
         btnDeleteFiltered.Click += (_, _) => DeleteFilteredActions();
@@ -338,9 +599,9 @@ public class MainForm : Form
         y += card.Height + 10;
     }
 
-    private void BuildGridSection(ref int y)
+    private void BuildGridSection(Control host, ref int y)
     {
-        var card = CreateCard("Timeline da macro", y, 430);
+        var card = CreateCard(host, "Timeline da macro", y, 430);
         SetupGridColumns();
 
         _eventsGrid.Left = 2;
@@ -350,9 +611,9 @@ public class MainForm : Form
         y += card.Height + 10;
     }
 
-    private void BuildLogSection(ref int y)
+    private void BuildLogSection(Control host, ref int y)
     {
-        var card = CreateCard("Log", y, 154);
+        var card = CreateCard(host, "Log", y, 154);
         _log.Left = 2;
         _log.Top = 34;
         card.Controls.Add(_log);
@@ -361,26 +622,37 @@ public class MainForm : Form
     private void SetupGridColumns()
     {
         _eventsGrid.EnableHeadersVisualStyles = false;
-        _eventsGrid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(248, 250, 252);
-        _eventsGrid.ColumnHeadersDefaultCellStyle.ForeColor = Color.FromArgb(17, 24, 39);
+        _eventsGrid.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Single;
+        _eventsGrid.ColumnHeadersHeight = 34;
+        _eventsGrid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(30, 41, 59);
+        _eventsGrid.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
         _eventsGrid.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
+        _eventsGrid.DefaultCellStyle.BackColor = Color.White;
         _eventsGrid.DefaultCellStyle.ForeColor = Color.FromArgb(31, 41, 55);
         _eventsGrid.DefaultCellStyle.SelectionBackColor = Color.FromArgb(219, 234, 254);
         _eventsGrid.DefaultCellStyle.SelectionForeColor = Color.FromArgb(30, 58, 138);
-        _eventsGrid.RowTemplate.Height = 30;
+        _eventsGrid.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 250, 252);
+        _eventsGrid.RowTemplate.Height = 32;
 
-        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "#", DataPropertyName = nameof(EventRow.Index), Width = 44 });
-        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Action", DataPropertyName = nameof(EventRow.Action), Width = 240 });
-        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Value", DataPropertyName = nameof(EventRow.Value), Width = 356 });
-        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Timestamp (ms)", DataPropertyName = nameof(EventRow.TimestampMs), Width = 120 });
-        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Wait (ms)", DataPropertyName = nameof(EventRow.WaitMs), Width = 100 });
-        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "RawIdx", DataPropertyName = nameof(EventRow.SourceEventIndex), Width = 76 });
-        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Kind", DataPropertyName = nameof(EventRow.Kind), Width = 180 });
+        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Index", HeaderText = "#", DataPropertyName = nameof(EventRow.Index), Width = 44, ReadOnly = true });
+        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Action", HeaderText = "Action", DataPropertyName = nameof(EventRow.Action), Width = 240, ReadOnly = true });
+        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Value", HeaderText = "Value", DataPropertyName = nameof(EventRow.Value), Width = 356 });
+        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "TimestampMs", HeaderText = "Timestamp (ms)", DataPropertyName = nameof(EventRow.TimestampMs), Width = 120, ReadOnly = true });
+        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "WaitMs", HeaderText = "Wait (ms)", DataPropertyName = nameof(EventRow.WaitMs), Width = 100 });
+        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "RawIdx", HeaderText = "RawIdx", DataPropertyName = nameof(EventRow.SourceEventIndex), Width = 76, ReadOnly = true });
+        _eventsGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Kind", HeaderText = "Kind", DataPropertyName = nameof(EventRow.Kind), Width = 180, ReadOnly = true });
+
+        _eventsGrid.CellEndEdit += (_, e) => ApplyGridEdit(e.RowIndex, e.ColumnIndex);
+        _eventsGrid.SelectionChanged += (_, _) => SyncDesignerWithSelection();
     }
 
     private void Log(string message)
     {
         _log.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}");
+        if (_statusLabel is not null)
+        {
+            _statusLabel.Text = $"Status: {message}";
+        }
     }
 
     private void BrowseMacro()
@@ -434,6 +706,12 @@ public class MainForm : Form
 
     private async Task PlayAsync()
     {
+        if (_playCts is not null && !_playCts.IsCancellationRequested)
+        {
+            Log("Replay já está em execução.");
+            return;
+        }
+
         var macro = await ResolveMacroForPlaybackAsync();
         if (macro is null)
         {
@@ -445,29 +723,143 @@ public class MainForm : Form
         var speed = double.TryParse(_speed.Text, out var s) ? s : 1.0;
 
         _playCts = new CancellationTokenSource();
+        var playbackOptions = new PlaybackFilterOptions
+        {
+            PlayMouseMoves = _playMouseMoves.Checked,
+            PlayMouseClicks = _playMouseClicks.Checked,
+            PlayKeyPresses = _playKeyPresses.Checked,
+            RespectWaitTimes = _playWaitTimes.Checked,
+            LoopCount = ParsePositiveInt(_loopCount.Text, 1),
+            StartDelayMs = ParseNonNegativeInt(_startDelayMs.Text, 0),
+            DelayJitterMs = ParseNonNegativeInt(_jitterMs.Text, 0)
+        };
+
+        var variableName = _variableName.Text.Trim();
+        var variableValues = ParseCsvValues(_variableValues.Text);
+
+        var selectedRowStart = _eventsGrid.SelectedRows.Count > 0
+            ? _eventsGrid.SelectedRows[0].DataBoundItem as EventRow
+            : null;
+
+        if (selectedRowStart?.SourceEventIndex is int sourceStart && sourceStart > 0)
+        {
+            macro = new MacroFile
+            {
+                Name = macro.Name,
+                CreatedAt = macro.CreatedAt,
+                Metadata = new Dictionary<string, string>(macro.Metadata),
+                Events = macro.Events.Skip(sourceStart).ToList()
+            };
+            Log($"Replay parcial a partir da linha selecionada (RawIdx={sourceStart}).");
+        }
+
         Log($"Reproduzindo {macro.Name} com {macro.Events.Count} eventos{(_hasUnsavedChanges ? " (edições locais)" : "")}...");
 
         try
         {
-            await _player.PlayAsync(
-                macro,
-                parameters,
-                speed,
-                _playCts.Token,
-                new PlaybackFilterOptions
+            _lastReplayMacro = new MacroFile
+            {
+                Name = macro.Name,
+                CreatedAt = macro.CreatedAt,
+                Metadata = new Dictionary<string, string>(macro.Metadata),
+                Events = macro.Events.Select(ev => new MacroEvent
                 {
-                    PlayMouseMoves = _playMouseMoves.Checked,
-                    PlayMouseClicks = _playMouseClicks.Checked,
-                    PlayKeyPresses = _playKeyPresses.Checked,
-                    RespectWaitTimes = _playWaitTimes.Checked
+                    Kind = ev.Kind,
+                    TimestampMs = ev.TimestampMs,
+                    Data = new Dictionary<string, string>(ev.Data)
+                }).ToList()
+            };
+            _lastReplayParameters = new Dictionary<string, string>(parameters);
+            _lastReplaySpeed = speed;
+            _lastReplayOptions = playbackOptions;
+
+            if (variableValues.Count > 0 && !string.IsNullOrWhiteSpace(variableName))
+            {
+                var sequenceOptions = new PlaybackFilterOptions
+                {
+                    PlayMouseMoves = playbackOptions.PlayMouseMoves,
+                    PlayMouseClicks = playbackOptions.PlayMouseClicks,
+                    PlayKeyPresses = playbackOptions.PlayKeyPresses,
+                    RespectWaitTimes = playbackOptions.RespectWaitTimes,
+                    LoopCount = 1,
+                    StartDelayMs = playbackOptions.StartDelayMs,
+                    DelayJitterMs = playbackOptions.DelayJitterMs
+                };
+
+                _lastReplayOptions = sequenceOptions;
+
+                for (var i = 0; i < variableValues.Count; i++)
+                {
+                    _playCts.Token.ThrowIfCancellationRequested();
+                    var loopParameters = new Dictionary<string, string>(parameters)
+                    {
+                        [variableName] = variableValues[i]
+                    };
+
+                    _lastReplayParameters = new Dictionary<string, string>(loopParameters);
+                    Log($"Loop variável {i + 1}/{variableValues.Count}: {variableName}={variableValues[i]}");
+                    await _player.PlayAsync(macro, loopParameters, speed, _playCts.Token, sequenceOptions);
                 }
-            );
-            Log("Replay concluído.");
+
+                Log("Replay concluído (todas variáveis processadas).");
+            }
+            else
+            {
+                await _player.PlayAsync(
+                    macro,
+                    parameters,
+                    speed,
+                    _playCts.Token,
+                    playbackOptions
+                );
+                Log("Replay concluído.");
+            }
         }
         catch (OperationCanceledException)
         {
             Log("Replay interrompido pelo usuário.");
         }
+        finally
+        {
+            _playCts?.Dispose();
+            _playCts = null;
+        }
+    }
+
+    private void ApplySpeedPreset()
+    {
+        var value = _speedPreset.SelectedItem?.ToString() ?? "Custom";
+        _speed.Text = value switch
+        {
+            "Lento (0.5x)" => "0.5",
+            "Normal (1x)" => "1.0",
+            "Rápido (2x)" => "2.0",
+            "Muito rápido (4x)" => "4.0",
+            _ => _speed.Text
+        };
+    }
+
+    private static int ParsePositiveInt(string raw, int fallback)
+    {
+        return int.TryParse(raw, out var value) && value > 0 ? value : fallback;
+    }
+
+    private static int ParseNonNegativeInt(string raw, int fallback)
+    {
+        return int.TryParse(raw, out var value) && value >= 0 ? value : fallback;
+    }
+
+    private static List<string> ParseCsvValues(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return new();
+        }
+
+        return raw
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .ToList();
     }
 
     private async Task<MacroFile?> ResolveMacroForPlaybackAsync()
@@ -490,6 +882,186 @@ public class MainForm : Form
     private void StopPlay()
     {
         _playCts?.Cancel();
+    }
+
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (keyData == Keys.Escape && _playCts is not null && !_playCts.IsCancellationRequested)
+        {
+            StopPlay();
+            Log("Replay interrompido via ESC.");
+            return true;
+        }
+
+        if (keyData == (Keys.Control | Keys.Shift | Keys.S))
+        {
+            _ = InvokeShortcutAsync(SaveCurrentMacroAsync);
+            return true;
+        }
+
+        if (keyData == (Keys.Control | Keys.O))
+        {
+            BrowseMacro();
+            return true;
+        }
+
+        if (keyData == (Keys.Control | Keys.I))
+        {
+            _ = InvokeShortcutAsync(LoadAndRenderMacroAsync);
+            return true;
+        }
+
+        if (IsHotkeyPressed(keyData, _hkStartRecord.Text, Keys.Control | Keys.R))
+        {
+            _ = InvokeShortcutAsync(StartRecordAsync);
+            return true;
+        }
+
+        if (IsHotkeyPressed(keyData, _hkStopRecord.Text, Keys.Control | Keys.Shift | Keys.R))
+        {
+            _ = InvokeShortcutAsync(StopRecordAsync);
+            return true;
+        }
+
+        if (IsHotkeyPressed(keyData, _hkPlay.Text, Keys.Control | Keys.P) || keyData == (Keys.Control | Keys.S))
+        {
+            _ = InvokeShortcutAsync(PlayAsync);
+            return true;
+        }
+
+        if (IsHotkeyPressed(keyData, _hkStopPlay.Text, Keys.Control | Keys.Shift | Keys.P))
+        {
+            StopPlay();
+            return true;
+        }
+
+        if (keyData == (Keys.Control | Keys.Alt | Keys.P))
+        {
+            _ = InvokeShortcutAsync(ReplayLastAsync);
+            return true;
+        }
+
+        if (keyData == (Keys.Control | Keys.D))
+        {
+            DuplicateSelectedAction();
+            return true;
+        }
+
+        if (keyData == (Keys.Alt | Keys.Up))
+        {
+            MoveSelectedAction(-1);
+            return true;
+        }
+
+        if (keyData == (Keys.Alt | Keys.Down))
+        {
+            MoveSelectedAction(1);
+            return true;
+        }
+
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    private static bool IsHotkeyPressed(Keys pressed, string configured, Keys fallback)
+    {
+        if (TryParseHotkey(configured, out var parsed))
+        {
+            return pressed == parsed;
+        }
+
+        return pressed == fallback;
+    }
+
+    private static bool TryParseHotkey(string raw, out Keys parsed)
+    {
+        parsed = Keys.None;
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return false;
+        }
+
+        var tokens = raw.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (tokens.Length == 0)
+        {
+            return false;
+        }
+
+        Keys result = Keys.None;
+        foreach (var token in tokens)
+        {
+            if (token.Equals("CTRL", StringComparison.OrdinalIgnoreCase))
+            {
+                result |= Keys.Control;
+                continue;
+            }
+
+            if (token.Equals("SHIFT", StringComparison.OrdinalIgnoreCase))
+            {
+                result |= Keys.Shift;
+                continue;
+            }
+
+            if (token.Equals("ALT", StringComparison.OrdinalIgnoreCase))
+            {
+                result |= Keys.Alt;
+                continue;
+            }
+
+            if (!Enum.TryParse<Keys>(token, true, out var keyPart))
+            {
+                return false;
+            }
+
+            result |= keyPart;
+        }
+
+        parsed = result;
+        return parsed != Keys.None;
+    }
+
+    private async Task InvokeShortcutAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            Log($"Erro no atalho: {ex.Message}");
+        }
+    }
+
+    private async Task ReplayLastAsync()
+    {
+        if (_lastReplayMacro is null)
+        {
+            Log("Ainda não existe último replay para repetir.");
+            return;
+        }
+
+        if (_playCts is not null && !_playCts.IsCancellationRequested)
+        {
+            Log("Replay já está em execução.");
+            return;
+        }
+
+        _playCts = new CancellationTokenSource();
+        Log($"Repetindo último replay: {_lastReplayMacro.Name}...");
+
+        try
+        {
+            await _player.PlayAsync(_lastReplayMacro, _lastReplayParameters, _lastReplaySpeed, _playCts.Token, _lastReplayOptions);
+            Log("Repetição concluída.");
+        }
+        catch (OperationCanceledException)
+        {
+            Log("Repetição interrompida pelo usuário.");
+        }
+        finally
+        {
+            _playCts?.Dispose();
+            _playCts = null;
+        }
     }
 
     private async Task LoadAndRenderMacroAsync()
@@ -625,6 +1197,11 @@ public class MainForm : Form
 
         var rows = BuildRows(_currentMacro, options);
         _eventsGrid.DataSource = rows;
+
+        var editable = options.EditMode;
+        _eventsGrid.ReadOnly = !editable;
+        if (_eventsGrid.Columns["Value"] is not null) _eventsGrid.Columns["Value"].ReadOnly = !editable;
+        if (_eventsGrid.Columns["WaitMs"] is not null) _eventsGrid.Columns["WaitMs"].ReadOnly = !editable;
     }
 
     private static List<EventRow> BuildRows(MacroFile macro, InspectRenderOptions options)
@@ -722,6 +1299,19 @@ public class MainForm : Form
             FlushMoveAggregation(rows, options, moveAggregation);
             moveAggregation = null;
 
+            if (TryBuildClickRow(macro.Events, i, prevTimestamp, ref lastX, ref lastY, out var clickRow, out var skipTo, out var clickTimestamp))
+            {
+                AddWaitRowIfRelevant(rows, options, clickTimestamp, clickRow.WaitMs);
+                if (MatchInspectFilter(options.Filter, clickRow.Kind))
+                {
+                    rows.Add(clickRow);
+                }
+
+                i = skipTo;
+                prevTimestamp = clickTimestamp;
+                continue;
+            }
+
             AddWaitRowIfRelevant(rows, options, ev.TimestampMs, waitMs);
 
             var action = PrettyAction(ev);
@@ -756,6 +1346,62 @@ public class MainForm : Form
         return ev.Kind == "mouse_move"
                && int.TryParse(ev.Data.GetValueOrDefault("x"), out x)
                && int.TryParse(ev.Data.GetValueOrDefault("y"), out y);
+    }
+
+    private static bool TryBuildClickRow(
+        IReadOnlyList<MacroEvent> events,
+        int index,
+        long prevTimestamp,
+        ref int? lastX,
+        ref int? lastY,
+        out EventRow row,
+        out int skipTo,
+        out long timestampMs)
+    {
+        row = new EventRow();
+        skipTo = index;
+        timestampMs = prevTimestamp;
+
+        var down = events[index];
+        if (down.Kind != "mouse_down" || index + 1 >= events.Count)
+        {
+            return false;
+        }
+
+        var up = events[index + 1];
+        if (up.Kind != "mouse_up")
+        {
+            return false;
+        }
+
+        var downButton = down.Data.GetValueOrDefault("button", "Left");
+        var upButton = up.Data.GetValueOrDefault("button", "Left");
+        if (!string.Equals(downButton, upButton, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!int.TryParse(up.Data.GetValueOrDefault("x"), out var x) || !int.TryParse(up.Data.GetValueOrDefault("y"), out var y))
+        {
+            return false;
+        }
+
+        timestampMs = up.TimestampMs;
+        var waitMs = Math.Max(timestampMs - prevTimestamp, 0);
+        lastX = x;
+        lastY = y;
+
+        row = new EventRow
+        {
+            Action = $"Mouse {upButton.ToLowerInvariant()} click",
+            Value = $"{x}, {y}",
+            TimestampMs = timestampMs,
+            WaitMs = waitMs,
+            Kind = "mouse_click",
+            SourceEventIndex = index
+        };
+        skipTo = index + 1;
+        return true;
     }
 
     private static void AddWaitRowIfRelevant(List<EventRow> rows, InspectRenderOptions options, long timestampMs, long waitMs)
@@ -840,9 +1486,9 @@ public class MainForm : Form
     {
         return filter switch
         {
-            "Cliques" => kind is "mouse_down" or "mouse_up",
+            "Cliques" => kind is "mouse_down" or "mouse_up" or "mouse_click",
             "Movimento mouse" => kind is "mouse_move" or "mouse_move_group",
-            "Teclado" => kind is "key_down" or "key_up",
+            "Teclado" => kind is "key_down" or "key_up" or "text_input",
             "Espera" => kind == "wait",
             _ => true
         };
@@ -856,8 +1502,10 @@ public class MainForm : Form
             "mouse_down" => $"Mouse {ev.Data.GetValueOrDefault("button", "left").ToLowerInvariant()} down",
             "mouse_up" => $"Mouse {ev.Data.GetValueOrDefault("button", "left").ToLowerInvariant()} up",
             "mouse_wheel" => "Mouse wheel",
+            "mouse_click" => $"Mouse {ev.Data.GetValueOrDefault("button", "left").ToLowerInvariant()} click",
             "key_down" => "Key down",
             "key_up" => "Key up",
+            "text_input" => "Text input",
             _ => ev.Kind
         };
     }
@@ -896,7 +1544,328 @@ public class MainForm : Form
             return ev.Data.GetValueOrDefault("key", "");
         }
 
+        if (ev.Kind == "text_input")
+        {
+            return ev.Data.GetValueOrDefault("text", "");
+        }
+
         return string.Join(", ", ev.Data.Select(pair => $"{pair.Key}={pair.Value}"));
+    }
+
+    private void InsertDesignedAction()
+    {
+        if (_currentMacro is null)
+        {
+            MessageBox.Show("Carregue uma macro antes de inserir ações.");
+            return;
+        }
+
+        if (!TryBuildEventFromDesigner(_currentMacro.Events.LastOrDefault()?.TimestampMs ?? 0, out var newEvent))
+        {
+            return;
+        }
+
+        _currentMacro.Events.Add(newEvent);
+        _hasUnsavedChanges = true;
+        RefreshGrid();
+        Log($"Ação '{newEvent.Kind}' inserida no final da macro.");
+    }
+
+    private void UpdateSelectedActionFromDesigner()
+    {
+        if (_currentMacro is null || _eventsGrid.SelectedRows.Count == 0)
+        {
+            return;
+        }
+
+        if (_eventsGrid.SelectedRows[0].DataBoundItem is not EventRow row || row.SourceEventIndex is not int idx || idx < 0 || idx >= _currentMacro.Events.Count)
+        {
+            MessageBox.Show("Selecione uma ação real na timeline para atualizar.");
+            return;
+        }
+
+        var currentTs = _currentMacro.Events[idx].TimestampMs;
+        if (!TryBuildEventFromDesigner(currentTs, out var updated))
+        {
+            return;
+        }
+
+        _currentMacro.Events[idx] = updated;
+        _hasUnsavedChanges = true;
+        RefreshGrid();
+        Log($"Ação na linha selecionada atualizada ({updated.Kind}).");
+    }
+
+    private bool TryBuildEventFromDesigner(long baseTimestamp, out MacroEvent result)
+    {
+        var kind = _designerActionType.SelectedItem?.ToString() ?? "Text input";
+        var rawValue = _designerValue.Text;
+        result = new MacroEvent
+        {
+            Kind = kind switch
+            {
+                "Text input" => "text_input",
+                "Wait" => "wait",
+                "Key down" => "key_down",
+                "Key up" => "key_up",
+                "Mouse left click" => "mouse_down",
+                _ => "text_input"
+            },
+            TimestampMs = baseTimestamp,
+            Data = new Dictionary<string, string>()
+        };
+
+        switch (result.Kind)
+        {
+            case "text_input":
+                result.Data["text"] = rawValue;
+                break;
+            case "wait":
+                if (!long.TryParse(rawValue, out var waitMs) || waitMs < 0)
+                {
+                    MessageBox.Show("Para Wait, informe milissegundos válidos.");
+                    return false;
+                }
+                result.TimestampMs += waitMs;
+                break;
+            case "key_down":
+            case "key_up":
+                result.Data["key"] = rawValue;
+                break;
+            case "mouse_down":
+                if (!string.IsNullOrWhiteSpace(rawValue) && TryParsePoint(rawValue, out var x, out var y))
+                {
+                    result.Data["x"] = x.ToString();
+                    result.Data["y"] = y.ToString();
+                }
+                else
+                {
+                    var pos = Cursor.Position;
+                    result.Data["x"] = pos.X.ToString();
+                    result.Data["y"] = pos.Y.ToString();
+                }
+
+                result.Data["button"] = "Left";
+                break;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_designerLabel.Text))
+        {
+            result.Data["label"] = _designerLabel.Text.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(_designerComment.Text))
+        {
+            result.Data["comment"] = _designerComment.Text.Trim();
+        }
+
+        return true;
+    }
+
+    private void DuplicateSelectedAction()
+    {
+        if (_currentMacro is null || _eventsGrid.SelectedRows.Count == 0)
+        {
+            return;
+        }
+
+        if (_eventsGrid.SelectedRows[0].DataBoundItem is not EventRow row || row.SourceEventIndex is not int idx || idx < 0 || idx >= _currentMacro.Events.Count)
+        {
+            return;
+        }
+
+        var source = _currentMacro.Events[idx];
+        var copy = new MacroEvent
+        {
+            Kind = source.Kind,
+            TimestampMs = source.TimestampMs,
+            Data = new Dictionary<string, string>(source.Data)
+        };
+
+        _currentMacro.Events.Insert(idx + 1, copy);
+        _hasUnsavedChanges = true;
+        RefreshGrid();
+        Log("Ação duplicada.");
+    }
+
+    private void MoveSelectedAction(int direction)
+    {
+        if (_currentMacro is null || _eventsGrid.SelectedRows.Count == 0)
+        {
+            return;
+        }
+
+        if (_eventsGrid.SelectedRows[0].DataBoundItem is not EventRow row || row.SourceEventIndex is not int idx)
+        {
+            return;
+        }
+
+        var target = idx + direction;
+        if (idx < 0 || idx >= _currentMacro.Events.Count || target < 0 || target >= _currentMacro.Events.Count)
+        {
+            return;
+        }
+
+        (_currentMacro.Events[idx], _currentMacro.Events[target]) = (_currentMacro.Events[target], _currentMacro.Events[idx]);
+        _hasUnsavedChanges = true;
+        RefreshGrid();
+        Log(direction < 0 ? "Ação movida para cima." : "Ação movida para baixo.");
+    }
+
+    private void ApplyGridEdit(int rowIndex, int columnIndex)
+    {
+        if (_currentMacro is null || !_editMode.Checked || rowIndex < 0 || columnIndex < 0)
+        {
+            return;
+        }
+
+        if (_eventsGrid.Rows[rowIndex].DataBoundItem is not EventRow row || row.SourceEventIndex is not int sourceIndex)
+        {
+            return;
+        }
+
+        var colName = _eventsGrid.Columns[columnIndex].Name;
+        var input = _eventsGrid.Rows[rowIndex].Cells[columnIndex].Value?.ToString() ?? string.Empty;
+
+        var ok = colName switch
+        {
+            "Value" => TryApplyValueEdit(sourceIndex, row.Kind, input),
+            "WaitMs" => TryApplyWaitEdit(sourceIndex, input),
+            _ => false
+        };
+
+        if (!ok)
+        {
+            Log("Edição inválida para esta linha. Use formato esperado.");
+            RefreshGrid();
+            return;
+        }
+
+        _hasUnsavedChanges = true;
+        RefreshGrid();
+    }
+
+    private void SyncDesignerWithSelection()
+    {
+        if (_currentMacro is null || _eventsGrid.SelectedRows.Count == 0)
+        {
+            return;
+        }
+
+        if (_eventsGrid.SelectedRows[0].DataBoundItem is not EventRow row || row.SourceEventIndex is not int idx || idx < 0 || idx >= _currentMacro.Events.Count)
+        {
+            return;
+        }
+
+        var ev = _currentMacro.Events[idx];
+        _designerActionType.SelectedItem = ev.Kind switch
+        {
+            "text_input" => "Text input",
+            "wait" => "Wait",
+            "key_down" => "Key down",
+            "key_up" => "Key up",
+            "mouse_down" => "Mouse left click",
+            _ => _designerActionType.SelectedItem
+        };
+
+        _designerValue.Text = ev.Kind switch
+        {
+            "text_input" => ev.Data.GetValueOrDefault("text", string.Empty),
+            "wait" => (idx > 0 ? Math.Max(ev.TimestampMs - _currentMacro.Events[idx - 1].TimestampMs, 0) : ev.TimestampMs).ToString(),
+            "key_down" or "key_up" => ev.Data.GetValueOrDefault("key", string.Empty),
+            "mouse_down" => $"{ev.Data.GetValueOrDefault("x", "0")}, {ev.Data.GetValueOrDefault("y", "0")}",
+            _ => string.Empty
+        };
+
+        _designerLabel.Text = ev.Data.GetValueOrDefault("label", string.Empty);
+        _designerComment.Text = ev.Data.GetValueOrDefault("comment", string.Empty);
+    }
+
+    private bool TryApplyValueEdit(int sourceIndex, string kind, string input)
+    {
+        if (_currentMacro is null || sourceIndex < 0 || sourceIndex >= _currentMacro.Events.Count)
+        {
+            return false;
+        }
+
+        var ev = _currentMacro.Events[sourceIndex];
+        input = input.Trim();
+
+        if (kind is "key_down" or "key_up")
+        {
+            ev.Data["key"] = input;
+            return !string.IsNullOrWhiteSpace(input);
+        }
+
+        if (kind == "text_input")
+        {
+            ev.Data["text"] = input;
+            return true;
+        }
+
+        if (kind == "mouse_wheel")
+        {
+            var raw = input.Replace("delta=", "", StringComparison.OrdinalIgnoreCase).Trim();
+            if (!int.TryParse(raw, out var delta)) return false;
+            ev.Data["delta"] = delta.ToString();
+            return true;
+        }
+
+        if (kind == "mouse_move")
+        {
+            var target = input.Contains("->", StringComparison.Ordinal)
+                ? input.Split("->", 2, StringSplitOptions.TrimEntries)[1]
+                : input;
+
+            if (!TryParsePoint(target, out var x, out var y)) return false;
+            ev.Data["x"] = x.ToString();
+            ev.Data["y"] = y.ToString();
+            return true;
+        }
+
+        if (kind is "mouse_down" or "mouse_up")
+        {
+            if (!TryParsePoint(input, out var x, out var y)) return false;
+            ev.Data["x"] = x.ToString();
+            ev.Data["y"] = y.ToString();
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool TryApplyWaitEdit(int sourceIndex, string input)
+    {
+        if (_currentMacro is null || sourceIndex < 0 || sourceIndex >= _currentMacro.Events.Count)
+        {
+            return false;
+        }
+
+        var raw = input.Replace("ms", "", StringComparison.OrdinalIgnoreCase).Trim();
+        if (!long.TryParse(raw, out var waitMs) || waitMs < 0)
+        {
+            return false;
+        }
+
+        var prevTs = sourceIndex > 0 ? _currentMacro.Events[sourceIndex - 1].TimestampMs : 0;
+        var oldTs = _currentMacro.Events[sourceIndex].TimestampMs;
+        var newTs = prevTs + waitMs;
+        var delta = newTs - oldTs;
+
+        for (var i = sourceIndex; i < _currentMacro.Events.Count; i++)
+        {
+            _currentMacro.Events[i].TimestampMs += delta;
+        }
+
+        return true;
+    }
+
+    private static bool TryParsePoint(string raw, out int x, out int y)
+    {
+        x = 0;
+        y = 0;
+        var parts = raw.Split(',', StringSplitOptions.TrimEntries);
+        return parts.Length == 2 && int.TryParse(parts[0], out x) && int.TryParse(parts[1], out y);
     }
 
     private async Task AnalyzeAsync()
