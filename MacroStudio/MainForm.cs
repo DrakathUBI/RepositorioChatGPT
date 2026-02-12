@@ -1903,16 +1903,62 @@ public class MainForm : Form
             return;
         }
 
-        if (!TryBuildEventFromDesigner(_currentMacro.Events.LastOrDefault()?.TimestampMs ?? 0, out var newEvent))
+        var insertAfterIndex = ResolveSelectedInsertAnchorIndex();
+        var baseTimestamp = insertAfterIndex >= 0 && insertAfterIndex < _currentMacro.Events.Count
+            ? _currentMacro.Events[insertAfterIndex].TimestampMs
+            : _currentMacro.Events.LastOrDefault()?.TimestampMs ?? 0;
+
+        if (!TryBuildEventFromDesigner(baseTimestamp, out var newEvent))
         {
             return;
         }
 
         PushUndoState();
-        _currentMacro.Events.Add(newEvent);
+        var targetInsertIndex = insertAfterIndex + 1;
+        if (targetInsertIndex >= 0 && targetInsertIndex <= _currentMacro.Events.Count)
+        {
+            _currentMacro.Events.Insert(targetInsertIndex, newEvent);
+        }
+        else
+        {
+            _currentMacro.Events.Add(newEvent);
+        }
+
         _hasUnsavedChanges = true;
         RefreshGrid();
-        Log($"Ação '{newEvent.Kind}' inserida no final da macro.");
+        Log($"Ação '{newEvent.Kind}' inserida abaixo da linha selecionada.");
+    }
+
+    private int ResolveSelectedInsertAnchorIndex()
+    {
+        if (_currentMacro is null || _eventsGrid.SelectedRows.Count == 0)
+        {
+            return _currentMacro?.Events.Count - 1 ?? -1;
+        }
+
+        if (_eventsGrid.SelectedRows[0].DataBoundItem is not EventRow row)
+        {
+            return _currentMacro.Events.Count - 1;
+        }
+
+        if (row.SecondarySourceEventIndex is int secondary && secondary >= 0 && secondary < _currentMacro.Events.Count)
+        {
+            return secondary;
+        }
+
+        if (row.SourceEventIndex is int source && source >= 0 && source < _currentMacro.Events.Count)
+        {
+            return source;
+        }
+
+        var fallback = _currentMacro.Events
+            .Select((ev, idx) => new { ev, idx })
+            .Where(x => x.ev.TimestampMs <= row.TimestampMs)
+            .Select(x => x.idx)
+            .DefaultIfEmpty(_currentMacro.Events.Count - 1)
+            .Max();
+
+        return Math.Clamp(fallback, -1, _currentMacro.Events.Count - 1);
     }
 
     private void UpdateSelectedActionFromDesigner()
