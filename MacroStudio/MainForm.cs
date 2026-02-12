@@ -758,7 +758,7 @@ public class MainForm : Form
             _lastReplaySpeed = speed;
             _lastReplayOptions = playbackOptions;
 
-            if (variableValues.Count > 0 && !string.IsNullOrWhiteSpace(variableName))
+            if (variableValues.Count > 0)
             {
                 var sequenceOptions = new PlaybackFilterOptions
                 {
@@ -773,20 +773,29 @@ public class MainForm : Form
 
                 _lastReplayOptions = sequenceOptions;
 
+                var effectiveVariableName = string.IsNullOrWhiteSpace(variableName) ? "value" : variableName;
+                if (string.IsNullOrWhiteSpace(variableName))
+                {
+                    Log("Nome variável vazio: usando padrão 'value' para o loop da lista.");
+                }
+
                 for (var i = 0; i < variableValues.Count; i++)
                 {
                     _playCts.Token.ThrowIfCancellationRequested();
+                    var currentValue = variableValues[i];
                     var loopParameters = new Dictionary<string, string>(parameters)
                     {
-                        [variableName] = variableValues[i]
+                        [effectiveVariableName] = currentValue,
+                        ["value"] = currentValue,
+                        ["item"] = currentValue
                     };
 
                     _lastReplayParameters = new Dictionary<string, string>(loopParameters);
-                    Log($"Loop variável {i + 1}/{variableValues.Count}: {variableName}={variableValues[i]}");
+                    Log($"Loop variável {i + 1}/{variableValues.Count}: {effectiveVariableName}={currentValue}");
                     await _player.PlayAsync(macro, loopParameters, speed, _playCts.Token, sequenceOptions);
                 }
 
-                Log("Replay concluído (todas variáveis processadas).");
+                Log("Replay concluído (todas variáveis processadas). Loop encerrado ao fim da lista.");
             }
             else
             {
