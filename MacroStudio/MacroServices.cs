@@ -35,7 +35,11 @@ public class MacroRecorderService
         _hook = Hook.GlobalEvents();
         _hook.KeyDown += (_, e) =>
         {
-            AddEvent("key_down", new Dictionary<string, string> { ["key"] = e.KeyCode.ToString() });
+            if (ShouldRecordKeyEvent(e))
+            {
+                AddEvent("key_down", new Dictionary<string, string> { ["key"] = e.KeyCode.ToString() });
+            }
+
             if (string.Equals(e.KeyCode.ToString(), stopKey, StringComparison.OrdinalIgnoreCase))
             {
                 Stop();
@@ -44,7 +48,15 @@ public class MacroRecorderService
 
         _hook.KeyUp += (_, e) =>
         {
-            AddEvent("key_up", new Dictionary<string, string> { ["key"] = e.KeyCode.ToString() });
+            if (ShouldRecordKeyEvent(e))
+            {
+                AddEvent("key_up", new Dictionary<string, string> { ["key"] = e.KeyCode.ToString() });
+            }
+        };
+
+        _hook.KeyPress += (_, e) =>
+        {
+            AddEvent("text_input", new Dictionary<string, string> { ["text"] = e.KeyChar.ToString() });
         };
 
         _hook.MouseMove += (_, e) =>
@@ -118,6 +130,29 @@ public class MacroRecorderService
         _hook = null;
         _stopwatch.Stop();
         IsRecording = false;
+    }
+
+
+    private static bool ShouldRecordKeyEvent(KeyEventArgs e)
+    {
+        if (e.Control || e.Alt)
+        {
+            return true;
+        }
+
+        return e.KeyCode switch
+        {
+            Keys.ShiftKey or Keys.LShiftKey or Keys.RShiftKey
+            or Keys.ControlKey or Keys.LControlKey or Keys.RControlKey
+            or Keys.Menu or Keys.LMenu or Keys.RMenu
+            or Keys.Enter or Keys.Back or Keys.Tab or Keys.Escape
+            or Keys.Delete or Keys.Insert
+            or Keys.Up or Keys.Down or Keys.Left or Keys.Right
+            or Keys.Home or Keys.End or Keys.PageUp or Keys.PageDown
+            or Keys.F1 or Keys.F2 or Keys.F3 or Keys.F4 or Keys.F5 or Keys.F6
+            or Keys.F7 or Keys.F8 or Keys.F9 or Keys.F10 or Keys.F11 or Keys.F12 => true,
+            _ => false
+        };
     }
 
 
@@ -276,7 +311,7 @@ public class MacroPlayerService
         {
             "mouse_move" => options.PlayMouseMoves,
             "mouse_down" or "mouse_up" or "mouse_wheel" => options.PlayMouseClicks,
-            "key_down" or "key_up" => options.PlayKeyPresses,
+            "key_down" or "key_up" or "text_input" => options.PlayKeyPresses,
             _ => true
         };
     }
@@ -292,6 +327,12 @@ public class MacroPlayerService
         if (kind == "key_up" && data.TryGetValue("key", out var keyUp) && TryParseKey(keyUp, out var ku))
         {
             NativeInput.keybd_event((byte)ku, 0, NativeInput.KEYEVENTF_KEYUP, UIntPtr.Zero);
+            return;
+        }
+
+        if (kind == "text_input" && data.TryGetValue("text", out var text) && !string.IsNullOrEmpty(text))
+        {
+            SendKeys.SendWait(EscapeSendKeysText(text));
             return;
         }
 
@@ -327,6 +368,22 @@ public class MacroPlayerService
         {
             NativeInput.mouse_event(NativeInput.MOUSEEVENTF_WHEEL, 0, 0, unchecked((uint)delta), UIntPtr.Zero);
         }
+    }
+
+
+    private static string EscapeSendKeysText(string text)
+    {
+        return text
+            .Replace("{", "{{}", StringComparison.Ordinal)
+            .Replace("}", "{}}", StringComparison.Ordinal)
+            .Replace("+", "{+}", StringComparison.Ordinal)
+            .Replace("^", "{^}", StringComparison.Ordinal)
+            .Replace("%", "{%}", StringComparison.Ordinal)
+            .Replace("~", "{~}", StringComparison.Ordinal)
+            .Replace("(", "{(}", StringComparison.Ordinal)
+            .Replace(")", "{)}", StringComparison.Ordinal)
+            .Replace("[", "{[}", StringComparison.Ordinal)
+            .Replace("]", "{]}", StringComparison.Ordinal);
     }
 
 

@@ -18,8 +18,9 @@ Atendendo ao pedido, o projeto agora é um **aplicativo desktop em C#/.NET (Wind
 - Replay parcial a partir da linha selecionada no inspetor (baseado no `RawIdx`).
 - Atalho `ESC` para parar replay imediatamente.
 - Interface separada por abas: **Gravação e Replay** / **Inspeção e Edição** para reduzir poluição visual.
-- Painel de atalhos com comandos rápidos (`Ctrl+S`, `Ctrl+O`, `Ctrl+I`, `Ctrl+R`, `Ctrl+Shift+R`, `Ctrl+P`, `Ctrl+Shift+P`, `Ctrl+Alt+P`).
+- Painel de atalhos com comandos rápidos (`Ctrl+S`, `Ctrl+P`, `Ctrl+Shift+S`, `Ctrl+O`, `Ctrl+I`, `Ctrl+R`, `Ctrl+Shift+R`, `Ctrl+Shift+P`, `Ctrl+Alt+P`).
 - Edição real no inspetor em **Modo edição** (valor e wait por linha), com persistência ao salvar.
+- Captura/replay de teclado aprimorada com `text_input` para preservar digitação real (ex.: `2026/1`) e combinações como `Ctrl+C` / `Ctrl+V`.
 - Parâmetros (`{{nome}}`) para reutilizar macros.
 - Modo IA opcional com Gemini (`GEMINI_API_KEY`).
 

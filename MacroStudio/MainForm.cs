@@ -395,8 +395,8 @@ public class MainForm : Form
             Width = 1110,
             Height = 78,
             ForeColor = Color.FromArgb(55, 65, 81),
-            Text = "Ctrl+S: salvar macro editada   |   Ctrl+O: abrir arquivo   |   Ctrl+I: inspecionar macro\n"
-                 + "Ctrl+R: iniciar gravação   |   Ctrl+Shift+R: parar gravação   |   Ctrl+P: reproduzir\n"
+            Text = "Ctrl+S/Ctrl+P: reproduzir   |   Ctrl+Shift+S: salvar macro   |   Ctrl+O: abrir arquivo\n"
+                 + "Ctrl+I: inspecionar macro   |   Ctrl+R: iniciar gravação   |   Ctrl+Shift+R: parar gravação\n"
                  + "Ctrl+Shift+P ou ESC: parar replay   |   Ctrl+Alt+P: repetir último replay"
         };
 
@@ -705,6 +705,12 @@ public class MainForm : Form
         }
 
         if (keyData == (Keys.Control | Keys.S))
+        {
+            _ = InvokeShortcutAsync(PlayAsync);
+            return true;
+        }
+
+        if (keyData == (Keys.Control | Keys.Shift | Keys.S))
         {
             _ = InvokeShortcutAsync(SaveCurrentMacroAsync);
             return true;
