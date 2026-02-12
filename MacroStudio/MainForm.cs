@@ -1256,6 +1256,11 @@ public class MainForm : Form
             return true;
         }
 
+        if (TryCaptureHotkeyFromEditor(keyData))
+        {
+            return true;
+        }
+
         if (keyData == (Keys.Control | Keys.Shift | Keys.S))
         {
             _ = InvokeShortcutAsync(SaveCurrentMacroAsync);
@@ -1271,11 +1276,6 @@ public class MainForm : Form
         if (keyData == (Keys.Control | Keys.I))
         {
             _ = InvokeShortcutAsync(LoadAndRenderMacroAsync);
-            return true;
-        }
-
-        if (TryCaptureHotkeyFromEditor(keyData))
-        {
             return true;
         }
 
@@ -2243,7 +2243,37 @@ public class MainForm : Form
         }
 
         PushUndoState();
-        _currentMacro.Events[idx] = updated;
+        if (row.Kind == "mouse_click"
+            && row.SecondarySourceEventIndex is int upIdx
+            && upIdx > idx
+            && upIdx < _currentMacro.Events.Count)
+        {
+            _currentMacro.Events[idx] = new MacroEvent
+            {
+                Kind = "mouse_down",
+                TimestampMs = updated.TimestampMs,
+                Data = new Dictionary<string, string>(updated.Data)
+            };
+
+            var upData = new Dictionary<string, string>
+            {
+                ["x"] = updated.Data.GetValueOrDefault("x", "0"),
+                ["y"] = updated.Data.GetValueOrDefault("y", "0"),
+                ["button"] = updated.Data.GetValueOrDefault("button", "Left")
+            };
+
+            _currentMacro.Events[upIdx] = new MacroEvent
+            {
+                Kind = "mouse_up",
+                TimestampMs = Math.Max(updated.TimestampMs, _currentMacro.Events[upIdx].TimestampMs),
+                Data = upData
+            };
+        }
+        else
+        {
+            _currentMacro.Events[idx] = updated;
+        }
+
         _hasUnsavedChanges = true;
         RefreshGrid();
         Log($"Ação na linha selecionada atualizada ({updated.Kind}).");
