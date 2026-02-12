@@ -23,6 +23,8 @@ Atendendo ao pedido, o projeto agora é um **aplicativo desktop em C#/.NET (Wind
 - Captura/replay de teclado aprimorada com `text_input` para preservar digitação real (ex.: `2026/1`) e combinações como `Ctrl+C` / `Ctrl+V`.
 - Loop por variável CSV: defina nome (ex.: `periodo`) e valores (ex.: `2027/1,2027/2`) para executar a macro do zero em cada valor e parar automaticamente no final.
 - Edição de texto digitado no inspetor (`text_input`) para ajustar exatamente o que será escrito no replay.
+- Aba **Designer de Ações** para montar macro passo-a-passo (inserir, duplicar, mover e excluir ações) sem editar JSON.
+- Hotkeys de edição de timeline: `Ctrl+D` (duplicar), `Alt+↑`/`Alt+↓` (mover ação).
 - Parâmetros (`{{nome}}`) para reutilizar macros.
 - Modo IA opcional com Gemini (`GEMINI_API_KEY`).
 

@@ -43,6 +43,11 @@ public class MainForm : Form
     private readonly CheckBox _naturalView = new() { Text = "Visão natural (menos spam)", Checked = true, AutoSize = true };
     private readonly CheckBox _editMode = new() { Text = "Modo edição (ações reais)", Checked = false, AutoSize = true };
 
+    private readonly ComboBox _designerActionType = new() { Width = 220, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly TextBox _designerValue = new() { Width = 700, Text = "" };
+    private readonly TextBox _designerLabel = new() { Width = 160, Text = "" };
+    private readonly TextBox _designerComment = new() { Width = 340, Text = "" };
+
     private readonly DataGridView _eventsGrid = new()
     {
         Width = 1140,
@@ -150,9 +155,11 @@ public class MainForm : Form
 
         var playbackPage = new TabPage("Gravação e Replay") { BackColor = Color.FromArgb(239, 242, 247), AutoScroll = true };
         var inspectorPage = new TabPage("Inspeção e Edição") { BackColor = Color.FromArgb(239, 242, 247), AutoScroll = true };
+        var designerPage = new TabPage("Designer de Ações") { BackColor = Color.FromArgb(239, 242, 247), AutoScroll = true };
 
         tabs.TabPages.Add(playbackPage);
         tabs.TabPages.Add(inspectorPage);
+        tabs.TabPages.Add(designerPage);
         Controls.Add(tabs);
 
         var yPlayback = 12;
@@ -164,6 +171,9 @@ public class MainForm : Form
         var yInspector = 12;
         BuildFilterSection(inspectorPage, ref yInspector);
         BuildGridSection(inspectorPage, ref yInspector);
+
+        var yDesigner = 12;
+        BuildMacroDesignerSection(designerPage, ref yDesigner);
     }
 
     private Panel CreateCard(Control host, string title, int y, int height)
@@ -415,6 +425,74 @@ public class MainForm : Form
         };
 
         card.Controls.Add(hint);
+        y += card.Height + 10;
+    }
+
+    private void BuildMacroDesignerSection(Control host, ref int y)
+    {
+        var card = CreateCard(host, "Construtor visual de ações", y, 212);
+
+        card.Controls.Add(new Label { Left = 14, Top = 44, Width = 90, Text = "Tipo ação", ForeColor = Color.FromArgb(75, 85, 99) });
+        _designerActionType.Left = 102;
+        _designerActionType.Top = 40;
+        _designerActionType.Items.Clear();
+        _designerActionType.Items.AddRange(new object[]
+        {
+            "Text input",
+            "Wait",
+            "Key down",
+            "Key up",
+            "Mouse left click"
+        });
+        _designerActionType.SelectedIndex = 0;
+        card.Controls.Add(_designerActionType);
+
+        card.Controls.Add(new Label { Left = 336, Top = 44, Width = 48, Text = "Valor", ForeColor = Color.FromArgb(75, 85, 99) });
+        _designerValue.Left = 384;
+        _designerValue.Top = 40;
+        StyleInput(_designerValue);
+        card.Controls.Add(_designerValue);
+
+        card.Controls.Add(new Label { Left = 14, Top = 84, Width = 90, Text = "Label", ForeColor = Color.FromArgb(75, 85, 99) });
+        _designerLabel.Left = 102;
+        _designerLabel.Top = 80;
+        StyleInput(_designerLabel);
+        card.Controls.Add(_designerLabel);
+
+        card.Controls.Add(new Label { Left = 276, Top = 84, Width = 74, Text = "Comentário", ForeColor = Color.FromArgb(75, 85, 99) });
+        _designerComment.Left = 350;
+        _designerComment.Top = 80;
+        StyleInput(_designerComment);
+        card.Controls.Add(_designerComment);
+
+        var btnInsert = CreatePrimaryButton("Inserir ação", 14, 124, 126);
+        var btnDuplicate = CreateGhostButton("Duplicar selecionada", 146, 124, 154);
+        var btnMoveUp = CreateGhostButton("Mover acima", 306, 124, 110);
+        var btnMoveDown = CreateGhostButton("Mover abaixo", 422, 124, 112);
+        var btnDelete = CreateGhostButton("Excluir selecionada", 540, 124, 140);
+
+        btnInsert.Click += (_, _) => InsertDesignedAction();
+        btnDuplicate.Click += (_, _) => DuplicateSelectedAction();
+        btnMoveUp.Click += (_, _) => MoveSelectedAction(-1);
+        btnMoveDown.Click += (_, _) => MoveSelectedAction(1);
+        btnDelete.Click += (_, _) => DeleteSelectedAction();
+
+        card.Controls.Add(btnInsert);
+        card.Controls.Add(btnDuplicate);
+        card.Controls.Add(btnMoveUp);
+        card.Controls.Add(btnMoveDown);
+        card.Controls.Add(btnDelete);
+
+        card.Controls.Add(new Label
+        {
+            Left = 14,
+            Top = 168,
+            Width = 1110,
+            Height = 34,
+            ForeColor = Color.FromArgb(75, 85, 99),
+            Text = "Dica: para variável, use no texto: {{periodo}}. Para loop por lista, preencha Nome variável e Valores CSV na aba Gravação e Replay."
+        });
+
         y += card.Height + 10;
     }
 
@@ -818,6 +896,24 @@ public class MainForm : Form
         if (keyData == (Keys.Control | Keys.Alt | Keys.P))
         {
             _ = InvokeShortcutAsync(ReplayLastAsync);
+            return true;
+        }
+
+        if (keyData == (Keys.Control | Keys.D))
+        {
+            DuplicateSelectedAction();
+            return true;
+        }
+
+        if (keyData == (Keys.Alt | Keys.Up))
+        {
+            MoveSelectedAction(-1);
+            return true;
+        }
+
+        if (keyData == (Keys.Alt | Keys.Down))
+        {
+            MoveSelectedAction(1);
             return true;
         }
 
@@ -1285,6 +1381,122 @@ public class MainForm : Form
         }
 
         return string.Join(", ", ev.Data.Select(pair => $"{pair.Key}={pair.Value}"));
+    }
+
+    private void InsertDesignedAction()
+    {
+        if (_currentMacro is null)
+        {
+            MessageBox.Show("Carregue uma macro antes de inserir ações.");
+            return;
+        }
+
+        var kind = _designerActionType.SelectedItem?.ToString() ?? "Text input";
+        var rawValue = _designerValue.Text;
+        var newEvent = new MacroEvent
+        {
+            Kind = kind switch
+            {
+                "Text input" => "text_input",
+                "Wait" => "wait",
+                "Key down" => "key_down",
+                "Key up" => "key_up",
+                "Mouse left click" => "mouse_down",
+                _ => "text_input"
+            },
+            TimestampMs = _currentMacro.Events.LastOrDefault()?.TimestampMs ?? 0,
+            Data = new Dictionary<string, string>()
+        };
+
+        switch (newEvent.Kind)
+        {
+            case "text_input":
+                newEvent.Data["text"] = rawValue;
+                break;
+            case "wait":
+                if (!long.TryParse(rawValue, out var waitMs) || waitMs < 0)
+                {
+                    MessageBox.Show("Para Wait, informe milissegundos válidos.");
+                    return;
+                }
+                newEvent.TimestampMs += waitMs;
+                break;
+            case "key_down":
+            case "key_up":
+                newEvent.Data["key"] = rawValue;
+                break;
+            case "mouse_down":
+                var pos = Cursor.Position;
+                newEvent.Data["x"] = pos.X.ToString();
+                newEvent.Data["y"] = pos.Y.ToString();
+                newEvent.Data["button"] = "Left";
+                break;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_designerLabel.Text))
+        {
+            newEvent.Data["label"] = _designerLabel.Text.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(_designerComment.Text))
+        {
+            newEvent.Data["comment"] = _designerComment.Text.Trim();
+        }
+
+        _currentMacro.Events.Add(newEvent);
+        _hasUnsavedChanges = true;
+        RefreshGrid();
+        Log($"Ação '{newEvent.Kind}' inserida no final da macro.");
+    }
+
+    private void DuplicateSelectedAction()
+    {
+        if (_currentMacro is null || _eventsGrid.SelectedRows.Count == 0)
+        {
+            return;
+        }
+
+        if (_eventsGrid.SelectedRows[0].DataBoundItem is not EventRow row || row.SourceEventIndex is not int idx || idx < 0 || idx >= _currentMacro.Events.Count)
+        {
+            return;
+        }
+
+        var source = _currentMacro.Events[idx];
+        var copy = new MacroEvent
+        {
+            Kind = source.Kind,
+            TimestampMs = source.TimestampMs,
+            Data = new Dictionary<string, string>(source.Data)
+        };
+
+        _currentMacro.Events.Insert(idx + 1, copy);
+        _hasUnsavedChanges = true;
+        RefreshGrid();
+        Log("Ação duplicada.");
+    }
+
+    private void MoveSelectedAction(int direction)
+    {
+        if (_currentMacro is null || _eventsGrid.SelectedRows.Count == 0)
+        {
+            return;
+        }
+
+        if (_eventsGrid.SelectedRows[0].DataBoundItem is not EventRow row || row.SourceEventIndex is not int idx)
+        {
+            return;
+        }
+
+        var target = idx + direction;
+        if (idx < 0 || idx >= _currentMacro.Events.Count || target < 0 || target >= _currentMacro.Events.Count)
+        {
+            return;
+        }
+
+        (_currentMacro.Events[idx], _currentMacro.Events[target]) = (_currentMacro.Events[target], _currentMacro.Events[idx]);
+        _hasUnsavedChanges = true;
+        RefreshGrid();
+        Log(direction < 0 ? "Ação movida para cima." : "Ação movida para baixo.");
     }
 
     private void ApplyGridEdit(int rowIndex, int columnIndex)
