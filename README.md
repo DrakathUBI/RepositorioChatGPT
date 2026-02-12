@@ -13,6 +13,10 @@ Atendendo ao pedido, o projeto agora é um **aplicativo desktop em C#/.NET (Wind
 - **Modo edição (ações reais)** para excluir ações diretamente na tabela (sem editar JSON na mão).
 - Replay direto da macro em memória (você pode testar alterações sem salvar antes).
 - Replay da macro com controle de velocidade.
+- Replay com **loop** (repetições automáticas), **delay inicial** e **jitter de timing** para execução menos robótica.
+- Presets de velocidade (lento/normal/rápido/muito rápido) para ajuste rápido.
+- Replay parcial a partir da linha selecionada no inspetor (baseado no `RawIdx`).
+- Atalho `ESC` para parar replay imediatamente.
 - Parâmetros (`{{nome}}`) para reutilizar macros.
 - Modo IA opcional com Gemini (`GEMINI_API_KEY`).
 
@@ -240,3 +244,22 @@ dist\MacroStudio.exe
 - O app roda em contexto de usuário. Não precisa admin para uso normal.
 - Alguns antivírus/Windows podem solicitar permissões por causa de hook global de entrada.
 - Em máquinas corporativas com proteção avançada, captura/replay de teclado e mouse pode ser bloqueada por política de segurança.
+
+## Evolução contínua (base Macro Recorder)
+
+Este projeto foi estruturado para crescer com funcionalidades inspiradas em macro recorders profissionais.
+
+Já implementado nesta base:
+- gravação global de teclado/mouse;
+- filtros por tipo no playback;
+- compactação de `mouse_move` para reduzir spam;
+- loop, delay inicial e jitter no replay;
+- edição em memória da timeline e replay parcial a partir da seleção;
+- stop por tecla (`ESC`) durante replay.
+
+Próximas funções candidatas para evolução:
+- agendamento (executar em horário específico);
+- triggers por hotkey global (iniciar/reproduzir/pausar);
+- repetição condicional (até imagem/pixel/condição);
+- biblioteca de ações avançadas (texto, clipboard, janela ativa, OCR).
+

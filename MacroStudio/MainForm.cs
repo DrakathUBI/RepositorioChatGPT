@@ -10,6 +10,10 @@ public class MainForm : Form
     private readonly TextBox _stopKey = new() { Width = 80, Text = "F8" };
     private readonly TextBox _model = new() { Width = 180, Text = "gemini-2.0-flash" };
     private readonly TextBox _waitThreshold = new() { Width = 70, Text = "250" };
+    private readonly TextBox _loopCount = new() { Width = 60, Text = "1" };
+    private readonly TextBox _startDelayMs = new() { Width = 80, Text = "0" };
+    private readonly TextBox _jitterMs = new() { Width = 80, Text = "0" };
+    private readonly ComboBox _speedPreset = new() { Width = 126, DropDownStyle = ComboBoxStyle.DropDownList };
 
     private readonly TextBox _log = new()
     {
@@ -268,7 +272,7 @@ public class MainForm : Form
 
     private void BuildActionSection(ref int y)
     {
-        var card = CreateCard("Record and Playback", y, 122);
+        var card = CreateCard("Record and Playback", y, 164);
 
         card.Controls.Add(new Label { Left = 14, Top = 44, Width = 86, Text = "Parâmetros", ForeColor = Color.FromArgb(75, 85, 99) });
         _params.Left = 105;
@@ -293,11 +297,37 @@ public class MainForm : Form
         _model.Top = 40;
         StyleInput(_model);
         card.Controls.Add(_model);
+        card.Controls.Add(new Label { Left = 14, Top = 82, Width = 74, Text = "Preset", ForeColor = Color.FromArgb(75, 85, 99) });
+        _speedPreset.Left = 88;
+        _speedPreset.Top = 78;
+        _speedPreset.Items.Clear();
+        _speedPreset.Items.AddRange(new object[] { "Custom", "Lento (0.5x)", "Normal (1x)", "Rápido (2x)", "Muito rápido (4x)" });
+        _speedPreset.SelectedIndex = 2;
+        _speedPreset.SelectedIndexChanged += (_, _) => ApplySpeedPreset();
+        card.Controls.Add(_speedPreset);
 
-        var btnRecord = CreatePrimaryButton("● Gravar", 14, 78, 120);
-        var btnStopRecord = CreateGhostButton("■ Parar Gravação", 140, 78, 140);
-        var btnPlay = CreatePrimaryButton("▶ Reproduzir", 286, 78, 120);
-        var btnStopPlay = CreateGhostButton("■ Parar Replay", 412, 78, 120);
+        card.Controls.Add(new Label { Left = 230, Top = 82, Width = 70, Text = "Loops", ForeColor = Color.FromArgb(75, 85, 99) });
+        _loopCount.Left = 280;
+        _loopCount.Top = 78;
+        StyleInput(_loopCount);
+        card.Controls.Add(_loopCount);
+
+        card.Controls.Add(new Label { Left = 350, Top = 82, Width = 95, Text = "Delay inicial", ForeColor = Color.FromArgb(75, 85, 99) });
+        _startDelayMs.Left = 436;
+        _startDelayMs.Top = 78;
+        StyleInput(_startDelayMs);
+        card.Controls.Add(_startDelayMs);
+
+        card.Controls.Add(new Label { Left = 525, Top = 82, Width = 90, Text = "Jitter (ms)", ForeColor = Color.FromArgb(75, 85, 99) });
+        _jitterMs.Left = 606;
+        _jitterMs.Top = 78;
+        StyleInput(_jitterMs);
+        card.Controls.Add(_jitterMs);
+
+        var btnRecord = CreatePrimaryButton("● Gravar", 700, 78, 110);
+        var btnStopRecord = CreateGhostButton("■ Parar Gravação", 816, 78, 136);
+        var btnPlay = CreatePrimaryButton("▶ Reproduzir", 958, 78, 90);
+        var btnStopPlay = CreateGhostButton("■ Parar", 1052, 78, 80);
 
         btnRecord.Click += async (_, _) => await StartRecordAsync();
         btnStopRecord.Click += async (_, _) => await StopRecordAsync();
@@ -309,13 +339,13 @@ public class MainForm : Form
         card.Controls.Add(btnPlay);
         card.Controls.Add(btnStopPlay);
 
-        _playMouseMoves.Left = 550;
+        _playMouseMoves.Left = 700;
         _playMouseMoves.Top = 84;
-        _playMouseClicks.Left = 665;
+        _playMouseClicks.Left = 796;
         _playMouseClicks.Top = 84;
-        _playKeyPresses.Left = 780;
+        _playKeyPresses.Left = 896;
         _playKeyPresses.Top = 84;
-        _playWaitTimes.Left = 892;
+        _playWaitTimes.Left = 1002;
         _playWaitTimes.Top = 84;
 
         StyleToggle(_playMouseMoves);
@@ -502,6 +532,22 @@ public class MainForm : Form
         var speed = double.TryParse(_speed.Text, out var s) ? s : 1.0;
 
         _playCts = new CancellationTokenSource();
+        var selectedRowStart = _eventsGrid.SelectedRows.Count > 0
+            ? _eventsGrid.SelectedRows[0].DataBoundItem as EventRow
+            : null;
+
+        if (selectedRowStart?.SourceEventIndex is int sourceStart && sourceStart > 0)
+        {
+            macro = new MacroFile
+            {
+                Name = macro.Name,
+                CreatedAt = macro.CreatedAt,
+                Metadata = new Dictionary<string, string>(macro.Metadata),
+                Events = macro.Events.Skip(sourceStart).ToList()
+            };
+            Log($"Replay parcial a partir da linha selecionada (RawIdx={sourceStart}).");
+        }
+
         Log($"Reproduzindo {macro.Name} com {macro.Events.Count} eventos{(_hasUnsavedChanges ? " (edições locais)" : "")}...");
 
         try
@@ -516,7 +562,10 @@ public class MainForm : Form
                     PlayMouseMoves = _playMouseMoves.Checked,
                     PlayMouseClicks = _playMouseClicks.Checked,
                     PlayKeyPresses = _playKeyPresses.Checked,
-                    RespectWaitTimes = _playWaitTimes.Checked
+                    RespectWaitTimes = _playWaitTimes.Checked,
+                    LoopCount = ParsePositiveInt(_loopCount.Text, 1),
+                    StartDelayMs = ParseNonNegativeInt(_startDelayMs.Text, 0),
+                    DelayJitterMs = ParseNonNegativeInt(_jitterMs.Text, 0)
                 }
             );
             Log("Replay concluído.");
@@ -530,6 +579,29 @@ public class MainForm : Form
             _playCts?.Dispose();
             _playCts = null;
         }
+    }
+
+    private void ApplySpeedPreset()
+    {
+        var value = _speedPreset.SelectedItem?.ToString() ?? "Custom";
+        _speed.Text = value switch
+        {
+            "Lento (0.5x)" => "0.5",
+            "Normal (1x)" => "1.0",
+            "Rápido (2x)" => "2.0",
+            "Muito rápido (4x)" => "4.0",
+            _ => _speed.Text
+        };
+    }
+
+    private static int ParsePositiveInt(string raw, int fallback)
+    {
+        return int.TryParse(raw, out var value) && value > 0 ? value : fallback;
+    }
+
+    private static int ParseNonNegativeInt(string raw, int fallback)
+    {
+        return int.TryParse(raw, out var value) && value >= 0 ? value : fallback;
     }
 
     private async Task<MacroFile?> ResolveMacroForPlaybackAsync()

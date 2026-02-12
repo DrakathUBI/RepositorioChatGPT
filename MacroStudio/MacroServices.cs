@@ -169,6 +169,9 @@ public sealed class PlaybackFilterOptions
     public bool PlayMouseClicks { get; init; } = true;
     public bool PlayKeyPresses { get; init; } = true;
     public bool RespectWaitTimes { get; init; } = true;
+    public int LoopCount { get; init; } = 1;
+    public int StartDelayMs { get; init; } = 0;
+    public int DelayJitterMs { get; init; } = 0;
 }
 
 public class MacroPlayerService
@@ -178,21 +181,42 @@ public class MacroPlayerService
     {
         options ??= new PlaybackFilterOptions();
         var playbackEvents = BuildPlaybackEvents(macro.Events, options);
-
-        long previous = 0;
-        foreach (var ev in playbackEvents)
+        if (playbackEvents.Count == 0)
         {
-            ct.ThrowIfCancellationRequested();
-            var delay = Math.Max((ev.TimestampMs - previous) / Math.Max(speed, 0.1), 0);
-            if (options.RespectWaitTimes && delay > 0)
+            return;
+        }
+
+        if (options.StartDelayMs > 0)
+        {
+            await Task.Delay(options.StartDelayMs, ct);
+        }
+
+        var loopCount = Math.Max(options.LoopCount, 1);
+        var jitter = Math.Max(options.DelayJitterMs, 0);
+        var random = jitter > 0 ? new Random() : null;
+
+        for (var loop = 0; loop < loopCount; loop++)
+        {
+            long previous = 0;
+            foreach (var ev in playbackEvents)
             {
-                await Task.Delay((int)delay, ct);
+                ct.ThrowIfCancellationRequested();
+                var delay = Math.Max((ev.TimestampMs - previous) / Math.Max(speed, 0.1), 0);
+                if (options.RespectWaitTimes && delay > 0)
+                {
+                    if (random is not null)
+                    {
+                        delay = Math.Max(delay + random.Next(-jitter, jitter + 1), 0);
+                    }
+
+                    await Task.Delay((int)delay, ct);
+                }
+
+                var data = ev.Data.ToDictionary(kvp => kvp.Key, kvp => ApplyParameters(kvp.Value, parameters));
+                Execute(ev.Kind, data);
+
+                previous = ev.TimestampMs;
             }
-
-            var data = ev.Data.ToDictionary(kvp => kvp.Key, kvp => ApplyParameters(kvp.Value, parameters));
-            Execute(ev.Kind, data);
-
-            previous = ev.TimestampMs;
         }
     }
 
